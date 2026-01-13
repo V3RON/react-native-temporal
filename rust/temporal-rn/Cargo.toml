@@ -1,0 +1,15 @@
+[package]
+name = "temporal-rn"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "temporal_rn"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+temporal_rs = { path = "../temporal", default-features = false, features = ["sys-local", "compiled_data"] }
+timezone_provider = { path = "../temporal/provider", features = ["tzif"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", default-features = false }

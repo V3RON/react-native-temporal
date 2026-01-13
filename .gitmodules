@@ -1,0 +1,3 @@
+[submodule "rust/temporal"]
+	path = rust/temporal
+	url = https://github.com/boa-dev/temporal.git
