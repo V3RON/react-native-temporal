@@ -11,3 +11,7 @@ export function instantNow(): string {
 export const Instant = {
   now: instantNow,
 };
+
+// Export Duration class
+export { Duration } from './types/Duration';
+export type { DurationLike } from './types/Duration';

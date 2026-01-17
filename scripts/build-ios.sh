@@ -46,10 +46,15 @@ cp "$TARGET_DIR/aarch64-apple-ios/release/libtemporal_rn.a" "$IOS_DIR/libs/libte
 
 # Generate C header using cbindgen
 echo "Generating C header..."
-if command -v cbindgen &> /dev/null; then
+# Skip header generation if header already exists and contains Duration API
+# (The header is manually maintained to ensure proper struct definitions)
+if [ -f "$IOS_DIR/temporal_rn.h" ] && grep -q "TemporalResult" "$IOS_DIR/temporal_rn.h"; then
+    echo "Header already exists with TemporalResult, skipping generation."
+elif command -v cbindgen &> /dev/null; then
     cbindgen --config cbindgen.toml --crate temporal-rn --output "$IOS_DIR/temporal_rn.h"
 else
-    echo "cbindgen not found, creating header manually..."
+    echo "cbindgen not found and no existing header, creating basic header..."
+    echo "WARNING: You may need to manually update ios/temporal_rn.h with Duration API declarations."
     cat > "$IOS_DIR/temporal_rn.h" << 'EOF'
 /* temporal-rn C bindings */
 #ifndef TEMPORAL_RN_H

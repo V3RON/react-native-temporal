@@ -10,6 +10,7 @@
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
+    "./polyfill": "./src/polyfill.ts",
     "./package.json": "./package.json"
   },
   "files": [
