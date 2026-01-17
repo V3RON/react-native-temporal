@@ -119,6 +119,53 @@ object TemporalNative {
     external fun plainDateSince(one: String, two: String): String
 
     /**
+     * PlainDateTime API
+     */
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeFromComponents(
+        year: Int, month: Int, day: Int,
+        hour: Int, minute: Int, second: Int,
+        millisecond: Int, microsecond: Int, nanosecond: Int,
+        calendarId: String?
+    ): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeGetAllComponents(s: String): LongArray
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeGetMonthCode(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeGetCalendar(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeAdd(dt: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeSubtract(dt: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeCompare(a: String, b: String): Int
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeWith(
+        dt: String,
+        year: Int, month: Int, day: Int,
+        hour: Int, minute: Int, second: Int,
+        millisecond: Int, microsecond: Int, nanosecond: Int,
+        calendarId: String?
+    ): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeUntil(one: String, two: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateTimeSince(one: String, two: String): String
+
+    /**
      * Calendar API
      */
 

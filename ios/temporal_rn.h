@@ -204,6 +204,55 @@ TemporalResult temporal_plain_date_until(const char *one_str, const char *two_st
 TemporalResult temporal_plain_date_since(const char *one_str, const char *two_str);
 
 // ============================================================================
+// PlainDateTime API
+// ============================================================================
+
+typedef struct {
+    int32_t year;
+    uint8_t month;
+    uint8_t day;
+    uint16_t day_of_week;
+    uint16_t day_of_year;
+    uint16_t week_of_year;
+    int32_t year_of_week;
+    uint16_t days_in_week;
+    uint16_t days_in_month;
+    uint16_t days_in_year;
+    uint16_t months_in_year;
+    int8_t in_leap_year;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    uint16_t millisecond;
+    uint16_t microsecond;
+    uint16_t nanosecond;
+    int8_t is_valid;
+} PlainDateTimeComponents;
+
+TemporalResult temporal_plain_date_time_from_string(const char *s);
+TemporalResult temporal_plain_date_time_from_components(
+    int32_t year, uint8_t month, uint8_t day,
+    uint8_t hour, uint8_t minute, uint8_t second,
+    uint16_t millisecond, uint16_t microsecond, uint16_t nanosecond,
+    const char *calendar_id
+);
+void temporal_plain_date_time_get_components(const char *s, PlainDateTimeComponents *out);
+TemporalResult temporal_plain_date_time_get_month_code(const char *s);
+TemporalResult temporal_plain_date_time_get_calendar(const char *s);
+TemporalResult temporal_plain_date_time_add(const char *dt_str, const char *duration_str);
+TemporalResult temporal_plain_date_time_subtract(const char *dt_str, const char *duration_str);
+CompareResult temporal_plain_date_time_compare(const char *a, const char *b);
+TemporalResult temporal_plain_date_time_with(
+    const char *dt_str,
+    int32_t year, int32_t month, int32_t day,
+    int32_t hour, int32_t minute, int32_t second,
+    int32_t millisecond, int32_t microsecond, int32_t nanosecond,
+    const char *calendar_id
+);
+TemporalResult temporal_plain_date_time_until(const char *one_str, const char *two_str);
+TemporalResult temporal_plain_date_time_since(const char *one_str, const char *two_str);
+
+// ============================================================================
 // Calendar API
 // ============================================================================
 

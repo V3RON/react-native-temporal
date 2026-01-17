@@ -419,6 +419,136 @@ static NSString *extractResultValue(TemporalResult result) {
     return extractResultValue(result);
 }
 
+// PlainDateTime methods
+
+- (NSString *)plainDateTimeFromString:(NSString *)s {
+    if (s == nil) {
+        THROW_TYPE_ERROR(@"PlainDateTime string cannot be null");
+    }
+    const char *sCStr = [s UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid plain date time string encoding");
+    }
+    TemporalResult result = temporal_plain_date_time_from_string(sCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateTimeFromComponents:(double)year
+                                    month:(double)month
+                                      day:(double)day
+                                     hour:(double)hour
+                                   minute:(double)minute
+                                   second:(double)second
+                              millisecond:(double)millisecond
+                              microsecond:(double)microsecond
+                               nanosecond:(double)nanosecond
+                               calendarId:(NSString *)calendarId {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_date_time_from_components(
+        (int32_t)year, (uint8_t)month, (uint8_t)day,
+        (uint8_t)hour, (uint8_t)minute, (uint8_t)second,
+        (uint16_t)millisecond, (uint16_t)microsecond, (uint16_t)nanosecond,
+        cIdCStr
+    );
+    return extractResultValue(result);
+}
+
+- (NSArray<NSNumber *> *)plainDateTimeGetAllComponents:(NSString *)s {
+    if (s == nil) {
+        THROW_TYPE_ERROR(@"PlainDateTime string cannot be null");
+    }
+    const char *sCStr = [s UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid plain date time string encoding");
+    }
+
+    PlainDateTimeComponents c;
+    temporal_plain_date_time_get_components(sCStr, &c);
+
+    if (c.is_valid == 0) {
+        THROW_RANGE_ERROR(@"Invalid plain date time");
+    }
+
+    return @[
+        @(c.year), @(c.month), @(c.day),
+        @(c.day_of_week), @(c.day_of_year), @(c.week_of_year), @(c.year_of_week),
+        @(c.days_in_week), @(c.days_in_month), @(c.days_in_year), @(c.months_in_year),
+        @(c.in_leap_year),
+        @(c.hour), @(c.minute), @(c.second),
+        @(c.millisecond), @(c.microsecond), @(c.nanosecond)
+    ];
+}
+
+- (NSString *)plainDateTimeGetMonthCode:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_date_time_get_month_code([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateTimeGetCalendar:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_date_time_get_calendar([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateTimeAdd:(NSString *)s duration:(NSString *)duration {
+    if (!s || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_time_add([s UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateTimeSubtract:(NSString *)s duration:(NSString *)duration {
+    if (!s || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_time_subtract([s UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (double)plainDateTimeCompare:(NSString *)a b:(NSString *)b {
+    if (!a || !b) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    CompareResult result = temporal_plain_date_time_compare([a UTF8String], [b UTF8String]);
+    if (result.error_type != TEMPORAL_ERROR_NONE) {
+        throwCompareError(&result);
+        return 0;
+    }
+    double val = (double)result.value;
+    temporal_free_compare_result(&result);
+    return val;
+}
+
+- (NSString *)plainDateTimeWith:(NSString *)s
+                           year:(double)year
+                          month:(double)month
+                            day:(double)day
+                           hour:(double)hour
+                         minute:(double)minute
+                         second:(double)second
+                    millisecond:(double)millisecond
+                    microsecond:(double)microsecond
+                     nanosecond:(double)nanosecond
+                     calendarId:(NSString *)calendarId {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_date_time_with(
+        [s UTF8String],
+        (int32_t)year, (int32_t)month, (int32_t)day,
+        (int32_t)hour, (int32_t)minute, (int32_t)second,
+        (int32_t)millisecond, (int32_t)microsecond, (int32_t)nanosecond,
+        cIdCStr
+    );
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateTimeUntil:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_time_until([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateTimeSince:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_time_since([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
 // Calendar methods
 
 - (NSString *)calendarFrom:(NSString *)id {

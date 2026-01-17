@@ -57,6 +57,42 @@ export interface Spec extends TurboModule {
   plainDateUntil(one: string, two: string): string;
   plainDateSince(one: string, two: string): string;
 
+  // PlainDateTime methods
+  plainDateTimeFromString(s: string): string;
+  plainDateTimeFromComponents(
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    microsecond: number,
+    nanosecond: number,
+    calendarId: string | null
+  ): string;
+  plainDateTimeGetAllComponents(s: string): number[];
+  plainDateTimeGetMonthCode(s: string): string;
+  plainDateTimeGetCalendar(s: string): string;
+  plainDateTimeAdd(dt: string, duration: string): string;
+  plainDateTimeSubtract(dt: string, duration: string): string;
+  plainDateTimeCompare(a: string, b: string): number;
+  plainDateTimeWith(
+    dt: string,
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    microsecond: number,
+    nanosecond: number,
+    calendarId: string | null
+  ): string;
+  plainDateTimeUntil(one: string, two: string): string;
+  plainDateTimeSince(one: string, two: string): string;
+
   // Calendar methods
   calendarFrom(id: string): string;
   calendarId(id: string): string;

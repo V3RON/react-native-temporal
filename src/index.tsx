@@ -11,6 +11,8 @@ export { Now } from './types/Now';
 export { PlainTime } from './types/PlainTime';
 export { Calendar } from './types/Calendar';
 export { PlainDate } from './types/PlainDate';
+export { PlainDateTime } from './types/PlainDateTime';
 export type { DurationLike } from './types/Duration';
 export type { PlainTimeLike } from './types/PlainTime';
 export type { PlainDateLike } from './types/PlainDate';
+export type { PlainDateTimeLike } from './types/PlainDateTime';

@@ -193,6 +193,79 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.plainDateSince(one, two)
   }
 
+  // PlainDateTime methods
+
+  override fun plainDateTimeFromString(s: String): String {
+    return TemporalNative.plainDateTimeFromString(s)
+  }
+
+  override fun plainDateTimeFromComponents(
+    year: Double, month: Double, day: Double,
+    hour: Double, minute: Double, second: Double,
+    millisecond: Double, microsecond: Double, nanosecond: Double,
+    calendarId: String?
+  ): String {
+    return TemporalNative.plainDateTimeFromComponents(
+      year.toInt(), month.toInt(), day.toInt(),
+      hour.toInt(), minute.toInt(), second.toInt(),
+      millisecond.toInt(), microsecond.toInt(), nanosecond.toInt(),
+      calendarId
+    )
+  }
+
+  override fun plainDateTimeGetAllComponents(s: String): WritableArray {
+    val components = TemporalNative.plainDateTimeGetAllComponents(s)
+    val result = WritableNativeArray()
+    for (value in components) {
+      result.pushDouble(value.toDouble())
+    }
+    return result
+  }
+
+  override fun plainDateTimeGetMonthCode(s: String): String {
+    return TemporalNative.plainDateTimeGetMonthCode(s)
+  }
+
+  override fun plainDateTimeGetCalendar(s: String): String {
+    return TemporalNative.plainDateTimeGetCalendar(s)
+  }
+
+  override fun plainDateTimeAdd(dt: String, duration: String): String {
+    return TemporalNative.plainDateTimeAdd(dt, duration)
+  }
+
+  override fun plainDateTimeSubtract(dt: String, duration: String): String {
+    return TemporalNative.plainDateTimeSubtract(dt, duration)
+  }
+
+  override fun plainDateTimeCompare(a: String, b: String): Double {
+    return TemporalNative.plainDateTimeCompare(a, b).toDouble()
+  }
+
+  override fun plainDateTimeWith(
+    dt: String,
+    year: Double, month: Double, day: Double,
+    hour: Double, minute: Double, second: Double,
+    millisecond: Double, microsecond: Double, nanosecond: Double,
+    calendarId: String?
+  ): String {
+    return TemporalNative.plainDateTimeWith(
+      dt,
+      year.toInt(), month.toInt(), day.toInt(),
+      hour.toInt(), minute.toInt(), second.toInt(),
+      millisecond.toInt(), microsecond.toInt(), nanosecond.toInt(),
+      calendarId
+    )
+  }
+
+  override fun plainDateTimeUntil(one: String, two: String): String {
+    return TemporalNative.plainDateTimeUntil(one, two)
+  }
+
+  override fun plainDateTimeSince(one: String, two: String): String {
+    return TemporalNative.plainDateTimeSince(one, two)
+  }
+
   // Calendar methods
 
   override fun calendarFrom(id: String): String {

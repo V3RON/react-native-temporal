@@ -8,7 +8,12 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { multiply, Instant, Duration } from 'react-native-temporal';
+import {
+  multiply,
+  Instant,
+  Duration,
+  PlainDateTime,
+} from 'react-native-temporal';
 
 const multiplyResult = multiply(3, 7);
 
@@ -46,9 +51,35 @@ export default function App() {
   const [isZeroResult, setIsZeroResult] = useState<string>('');
   const [error, setError] = useState<string>('');
 
+  // PlainDateTime test state
+  const [dateTimeInput, setDateTimeInput] = useState<string>(
+    '2024-03-14T15:30:00'
+  );
+  const [parsedDateTime, setParsedDateTime] = useState<string>('');
+  const [dateTimeComponents, setDateTimeComponents] = useState<string>('');
+  const [dateTimeAddResult, setDateTimeAddResult] = useState<string>('');
+
   const updateInstant = () => {
     const instant = Instant.now();
     setCurrentInstant(instant.toString());
+  };
+
+  const testDateTimeParsing = () => {
+    try {
+      setError('');
+      const dt = PlainDateTime.from(dateTimeInput);
+      setParsedDateTime(dt.toString());
+      setDateTimeComponents(
+        `Y:${dt.year} M:${dt.month} D:${dt.day} H:${dt.hour} m:${dt.minute} s:${dt.second}`
+      );
+
+      // Test add
+      const added = dt.add('P1D');
+      setDateTimeAddResult(`${dt.toString()} + P1D = ${added.toString()}`);
+    } catch (e) {
+      setError(`DateTime error: ${e}`);
+      setParsedDateTime('');
+    }
   };
 
   const testDurationParsing = () => {
@@ -253,6 +284,28 @@ export default function App() {
           <>
             <Text style={styles.label}>Blank:</Text>
             <Text style={styles.value}>{isZeroResult}</Text>
+          </>
+        ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>PlainDateTime</Text>
+        <TextInput
+          style={styles.input}
+          value={dateTimeInput}
+          onChangeText={setDateTimeInput}
+          placeholder="ISO DateTime"
+        />
+        <Button title="Test DateTime" onPress={testDateTimeParsing} />
+
+        {parsedDateTime ? (
+          <>
+            <Text style={styles.label}>Parsed:</Text>
+            <Text style={styles.value}>{parsedDateTime}</Text>
+            <Text style={styles.label}>Components:</Text>
+            <Text style={styles.value}>{dateTimeComponents}</Text>
+            <Text style={styles.label}>Add P1D:</Text>
+            <Text style={styles.value}>{dateTimeAddResult}</Text>
           </>
         ) : null}
       </View>

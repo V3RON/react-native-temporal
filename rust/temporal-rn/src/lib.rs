@@ -830,6 +830,339 @@ fn parse_plain_date(s: *const c_char, param_name: &str) -> Result<PlainDate, Tem
 }
 
 // ============================================================================
+// PlainDateTime API
+// ============================================================================
+
+/// Represents a PlainDateTime's component values for FFI.
+#[repr(C)]
+pub struct PlainDateTimeComponents {
+    pub year: i32,
+    pub month: u8,
+    pub day: u8,
+    pub day_of_week: u16,
+    pub day_of_year: u16,
+    pub week_of_year: u16,
+    pub year_of_week: i32,
+    pub days_in_week: u16,
+    pub days_in_month: u16,
+    pub days_in_year: u16,
+    pub months_in_year: u16,
+    pub in_leap_year: i8,
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+    pub millisecond: u16,
+    pub microsecond: u16,
+    pub nanosecond: u16,
+    pub is_valid: i8,
+}
+
+impl Default for PlainDateTimeComponents {
+    fn default() -> Self {
+        Self {
+            year: 0,
+            month: 0,
+            day: 0,
+            day_of_week: 0,
+            day_of_year: 0,
+            week_of_year: 0,
+            year_of_week: 0,
+            days_in_week: 0,
+            days_in_month: 0,
+            days_in_year: 0,
+            months_in_year: 0,
+            in_leap_year: 0,
+            hour: 0,
+            minute: 0,
+            second: 0,
+            millisecond: 0,
+            microsecond: 0,
+            nanosecond: 0,
+            is_valid: 0,
+        }
+    }
+}
+
+/// Parses an ISO 8601 string into a PlainDateTime and returns the normalized string.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_from_string(s: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(s, "plain date time string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    match PlainDateTime::from_str(s_str) {
+        Ok(dt) => match dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid plain date time '{}': {}", s_str, e)),
+    }
+}
+
+/// Creates a PlainDateTime from components.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_from_components(
+    year: i32,
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+    second: u8,
+    millisecond: u16,
+    microsecond: u16,
+    nanosecond: u16,
+    calendar_id: *const c_char,
+) -> TemporalResult {
+    let calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        Calendar::default()
+    };
+
+    match PlainDateTime::new(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, calendar) {
+        Ok(dt) => match dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid plain date time components: {}", e)),
+    }
+}
+
+/// Gets all component values from a PlainDateTime string.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_get_components(
+    s: *const c_char,
+    out: *mut PlainDateTimeComponents,
+) {
+    if out.is_null() {
+        return;
+    }
+
+    unsafe { *out = PlainDateTimeComponents::default(); }
+
+    if s.is_null() {
+        return;
+    }
+
+    let dt: PlainDateTime = match parse_plain_date_time(s, "plain date time") {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+
+    unsafe {
+        (*out).year = dt.year();
+        (*out).month = dt.month();
+        (*out).day = dt.day();
+        (*out).day_of_week = dt.day_of_week();
+        (*out).day_of_year = dt.day_of_year();
+        (*out).week_of_year = dt.week_of_year().unwrap_or(0) as u16;
+        (*out).year_of_week = dt.year_of_week().unwrap_or(0);
+        (*out).days_in_week = dt.days_in_week();
+        (*out).days_in_month = dt.days_in_month();
+        (*out).days_in_year = dt.days_in_year();
+        (*out).months_in_year = dt.months_in_year();
+        (*out).in_leap_year = if dt.in_leap_year() { 1 } else { 0 };
+
+        (*out).hour = dt.hour();
+        (*out).minute = dt.minute();
+        (*out).second = dt.second();
+        (*out).millisecond = dt.millisecond();
+        (*out).microsecond = dt.microsecond();
+        (*out).nanosecond = dt.nanosecond();
+        
+        (*out).is_valid = 1;
+    }
+}
+
+/// Gets the month code of a PlainDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_get_month_code(s: *const c_char) -> TemporalResult {
+    let dt = match parse_plain_date_time(s, "plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    TemporalResult::success(dt.month_code().as_str().to_string())
+}
+
+/// Gets the calendar ID of a PlainDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_get_calendar(s: *const c_char) -> TemporalResult {
+    let dt = match parse_plain_date_time(s, "plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    TemporalResult::success(dt.calendar().identifier().to_string())
+}
+
+/// Adds a duration to a PlainDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_add(dt_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let dt: PlainDateTime = match parse_plain_date_time(dt_str, "plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match dt.add(&duration, None) {
+        Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to add duration: {}", e)),
+    }
+}
+
+/// Subtracts a duration from a PlainDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_subtract(dt_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let dt: PlainDateTime = match parse_plain_date_time(dt_str, "plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match dt.subtract(&duration, None) {
+        Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to subtract duration: {}", e)),
+    }
+}
+
+/// Compares two PlainDateTimes.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_compare(a: *const c_char, b: *const c_char) -> CompareResult {
+    let dt_a: PlainDateTime = match parse_plain_date_time(a, "first plain date time") {
+        Ok(d) => d,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+    let dt_b: PlainDateTime = match parse_plain_date_time(b, "second plain date time") {
+        Ok(d) => d,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+
+    CompareResult::success(dt_a.compare_iso(&dt_b) as i32)
+}
+
+/// Returns a new PlainDateTime with updated fields.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_with(
+    dt_str: *const c_char,
+    year: i32,
+    month: i32,
+    day: i32,
+    hour: i32,
+    minute: i32,
+    second: i32,
+    millisecond: i32,
+    microsecond: i32,
+    nanosecond: i32,
+    calendar_id: *const c_char,
+) -> TemporalResult {
+    let dt: PlainDateTime = match parse_plain_date_time(dt_str, "plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    
+    let new_year = if year == i32::MIN { dt.year() } else { year };
+    let new_month = if month == i32::MIN { dt.month() } else { month as u8 };
+    let new_day = if day == i32::MIN { dt.day() } else { day as u8 };
+    
+    let new_hour = if hour == i32::MIN { dt.hour() } else { hour as u8 };
+    let new_minute = if minute == i32::MIN { dt.minute() } else { minute as u8 };
+    let new_second = if second == i32::MIN { dt.second() } else { second as u8 };
+    let new_millisecond = if millisecond == i32::MIN { dt.millisecond() } else { millisecond as u16 };
+    let new_microsecond = if microsecond == i32::MIN { dt.microsecond() } else { microsecond as u16 };
+    let new_nanosecond = if nanosecond == i32::MIN { dt.nanosecond() } else { nanosecond as u16 };
+
+    let new_calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        dt.calendar().clone()
+    };
+
+    match PlainDateTime::new(new_year, new_month, new_day, new_hour, new_minute, new_second, new_millisecond, new_microsecond, new_nanosecond, new_calendar) {
+         Ok(new_dt) => match new_dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+             Ok(s) => TemporalResult::success(s),
+             Err(e) => TemporalResult::range_error(&format!("Failed to format plain date time: {}", e)),
+         },
+        Err(e) => TemporalResult::range_error(&format!("Invalid date time components: {}", e)),
+    }
+}
+
+/// Computes the difference between two PlainDateTimes (until).
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_until(
+    one_str: *const c_char,
+    two_str: *const c_char,
+) -> TemporalResult {
+    let one: PlainDateTime = match parse_plain_date_time(one_str, "first plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let two: PlainDateTime = match parse_plain_date_time(two_str, "second plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match one.until(&two, Default::default()) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+/// Computes the difference between two PlainDateTimes (since).
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_time_since(
+    one_str: *const c_char,
+    two_str: *const c_char,
+) -> TemporalResult {
+    let one: PlainDateTime = match parse_plain_date_time(one_str, "first plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let two: PlainDateTime = match parse_plain_date_time(two_str, "second plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match one.since(&two, Default::default()) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+// Helper functions for PlainDateTime
+fn parse_plain_date_time(s: *const c_char, param_name: &str) -> Result<PlainDateTime, TemporalResult> {
+    let str_val = parse_c_str(s, param_name)?;
+    PlainDateTime::from_str(str_val)
+        .map_err(|e| TemporalResult::range_error(&format!("Invalid plain date time '{}': {}", str_val, e)))
+}
+
+// ============================================================================
 // Calendar API
 // ============================================================================
 
@@ -1304,7 +1637,7 @@ mod android {
     };
     use temporal_rs::{
         options::{DisplayCalendar, ToStringRoundingOptions},
-        Calendar, Duration, Instant, PlainDate, PlainTime,
+        Calendar, Duration, Instant, PlainDate, PlainDateTime, PlainTime,
     };
     use std::str::FromStr;
     use std::ptr;
@@ -2261,6 +2594,495 @@ mod android {
                     throw_range_error(&mut env, "Failed to create result string");
                     ptr::null_mut()
                 }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute since: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeFromString()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeFromString(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "plain date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match PlainDateTime::from_str(&s_val) {
+            Ok(dt) => match dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain date time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time '{}': {}", s_val, e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeFromComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeFromComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        year: jint,
+        month: jint,
+        day: jint,
+        hour: jint,
+        minute: jint,
+        second: jint,
+        millisecond: jint,
+        microsecond: jint,
+        nanosecond: jint,
+        calendar_id: JString,
+    ) -> jstring {
+        let calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            Calendar::default()
+        };
+
+        match PlainDateTime::new(
+            year,
+            month as u8,
+            day as u8,
+            hour as u8,
+            minute as u8,
+            second as u8,
+            millisecond as u16,
+            microsecond as u16,
+            nanosecond as u16,
+            calendar
+        ) {
+            Ok(dt) => match dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain date time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time components: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeGetAllComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeGetAllComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jlongArray {
+        let s_str = parse_jstring(&mut env, &s, "plain date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        let dt = match PlainDateTime::from_str(&s_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let components: [i64; 18] = [
+            dt.year() as i64,
+            dt.month() as i64,
+            dt.day() as i64,
+            dt.day_of_week() as i64,
+            dt.day_of_year() as i64,
+            dt.week_of_year().unwrap_or(0) as i64,
+            dt.year_of_week().unwrap_or(0) as i64,
+            dt.days_in_week() as i64,
+            dt.days_in_month() as i64,
+            dt.days_in_year() as i64,
+            dt.months_in_year() as i64,
+            if dt.in_leap_year() { 1 } else { 0 },
+            dt.hour() as i64,
+            dt.minute() as i64,
+            dt.second() as i64,
+            dt.millisecond() as i64,
+            dt.microsecond() as i64,
+            dt.nanosecond() as i64,
+        ];
+
+        match env.new_long_array(18) {
+            Ok(arr) => {
+                if env.set_long_array_region(&arr, 0, &components).is_err() {
+                    throw_range_error(&mut env, "Failed to set array elements");
+                    return ptr::null_mut();
+                }
+                arr.into_raw()
+            }
+            Err(_) => {
+                throw_range_error(&mut env, "Failed to create result array");
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeGetMonthCode()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeGetMonthCode(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "plain date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match PlainDateTime::from_str(&s_val) {
+            Ok(dt) => env.new_string(dt.month_code().as_str())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeGetCalendar()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeGetCalendar(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "plain date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match PlainDateTime::from_str(&s_val) {
+            Ok(dt) => env.new_string(dt.calendar().identifier())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeAdd()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeAdd(
+        mut env: JNIEnv,
+        _class: JClass,
+        dt_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let dt_s = parse_jstring(&mut env, &dt_str, "plain date time");
+        let dt_val = match dt_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt = match PlainDateTime::from_str(&dt_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let dur_s = parse_jstring(&mut env, &duration_str, "duration");
+        let dur_val = match dur_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let duration = match Duration::from_str(&dur_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid duration: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match dt.add(&duration, None) {
+            Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format result: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to add duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeSubtract()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeSubtract(
+        mut env: JNIEnv,
+        _class: JClass,
+        dt_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let dt_s = parse_jstring(&mut env, &dt_str, "plain date time");
+        let dt_val = match dt_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt = match PlainDateTime::from_str(&dt_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let dur_s = parse_jstring(&mut env, &duration_str, "duration");
+        let dur_val = match dur_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let duration = match Duration::from_str(&dur_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid duration: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match dt.subtract(&duration, None) {
+            Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format result: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to subtract duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeCompare()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeCompare(
+        mut env: JNIEnv,
+        _class: JClass,
+        a: JString,
+        b: JString,
+    ) -> jint {
+        let a_str = parse_jstring(&mut env, &a, "first plain date time");
+        let a_val = match a_str {
+            Some(s) => s,
+            None => return 0,
+        };
+        let dt_a = match PlainDateTime::from_str(&a_val) {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+
+        let b_str = parse_jstring(&mut env, &b, "second plain date time");
+        let b_val = match b_str {
+            Some(s) => s,
+            None => return 0,
+        };
+        let dt_b = match PlainDateTime::from_str(&b_val) {
+            Ok(d) => d,
+            Err(_) => return 0,
+        };
+
+        dt_a.compare_iso(&dt_b) as jint
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeWith()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeWith(
+        mut env: JNIEnv,
+        _class: JClass,
+        dt_str: JString,
+        year: jint,
+        month: jint,
+        day: jint,
+        hour: jint,
+        minute: jint,
+        second: jint,
+        millisecond: jint,
+        microsecond: jint,
+        nanosecond: jint,
+        calendar_id: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &dt_str, "plain date time");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt = match PlainDateTime::from_str(&s_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let new_year = if year == i32::MIN { dt.year() } else { year };
+        let new_month = if month == i32::MIN { dt.month() } else { month as u8 };
+        let new_day = if day == i32::MIN { dt.day() } else { day as u8 };
+        
+        let new_hour = if hour == i32::MIN { dt.hour() } else { hour as u8 };
+        let new_minute = if minute == i32::MIN { dt.minute() } else { minute as u8 };
+        let new_second = if second == i32::MIN { dt.second() } else { second as u8 };
+        let new_millisecond = if millisecond == i32::MIN { dt.millisecond() } else { millisecond as u16 };
+        let new_microsecond = if microsecond == i32::MIN { dt.microsecond() } else { microsecond as u16 };
+        let new_nanosecond = if nanosecond == i32::MIN { dt.nanosecond() } else { nanosecond as u16 };
+
+        let new_calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            dt.calendar().clone()
+        };
+
+        match PlainDateTime::new(
+            new_year, new_month, new_day,
+            new_hour, new_minute, new_second,
+            new_millisecond, new_microsecond, new_nanosecond,
+            new_calendar
+        ) {
+             Ok(new_dt) => match new_dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                 Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                 Err(e) => {
+                     throw_range_error(&mut env, &format!("Failed to format plain date time: {}", e));
+                     ptr::null_mut()
+                 }
+             },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid date components: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeUntil()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeUntil(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+    ) -> jstring {
+        let one_str = parse_jstring(&mut env, &one, "first plain date time");
+        let one_val = match one_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt1 = match PlainDateTime::from_str(&one_val) {
+            Ok(d) => d,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        let two_str = parse_jstring(&mut env, &two, "second plain date time");
+        let two_val = match two_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt2 = match PlainDateTime::from_str(&two_val) {
+            Ok(d) => d,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        match dt1.until(&dt2, Default::default()) {
+            Ok(d) => env
+                .new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute until: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateTimeSince()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateTimeSince(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+    ) -> jstring {
+        let one_str = parse_jstring(&mut env, &one, "first plain date time");
+        let one_val = match one_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt1 = match PlainDateTime::from_str(&one_val) {
+            Ok(d) => d,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        let two_str = parse_jstring(&mut env, &two, "second plain date time");
+        let two_val = match two_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt2 = match PlainDateTime::from_str(&two_val) {
+            Ok(d) => d,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        match dt1.since(&dt2, Default::default()) {
+            Ok(d) => env
+                .new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
             Err(e) => {
                 throw_range_error(&mut env, &format!("Failed to compute since: {}", e));
                 ptr::null_mut()
