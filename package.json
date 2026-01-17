@@ -46,7 +46,9 @@
     "release": "release-it --only-version",
     "build:rust:ios": "./scripts/build-ios.sh",
     "build:rust:android": "./scripts/build-android.sh",
-    "build:rust": "./scripts/build-all.sh"
+    "build:rust": "./scripts/build-all.sh",
+    "harness:android": "yarn workspace react-native-temporal-example harness:android",
+    "harness:ios": "yarn workspace react-native-temporal-example harness:ios"
   },
   "keywords": [
     "react-native",
