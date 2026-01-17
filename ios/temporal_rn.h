@@ -101,6 +101,25 @@ TemporalResult temporal_instant_subtract(const char *instant_str, const char *du
  */
 CompareResult temporal_instant_compare(const char *a, const char *b);
 
+// ============================================================================
+// Now API
+// ============================================================================
+
+/**
+ * Returns the current plain date time as an ISO 8601 string.
+ */
+TemporalResult temporal_now_plain_date_time_iso(const char *tz_id);
+
+/**
+ * Returns the current plain date as an ISO 8601 string.
+ */
+TemporalResult temporal_now_plain_date_iso(const char *tz_id);
+
+/**
+ * Returns the current plain time as an ISO 8601 string.
+ */
+TemporalResult temporal_now_plain_time_iso(const char *tz_id);
+
 /**
  * Frees a string allocated by temporal functions.
  */

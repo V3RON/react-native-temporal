@@ -12,6 +12,12 @@ export interface Spec extends TurboModule {
   instantSubtract(instant: string, duration: string): string;
   instantCompare(one: string, two: string): number;
 
+  // Now methods
+  nowTimeZoneId(): string;
+  nowPlainDateTimeISO(tz?: string): string;
+  nowPlainDateISO(tz?: string): string;
+  nowPlainTimeISO(tz?: string): string;
+
   // Duration methods - minimal bridge, all logic in native
 
   /**

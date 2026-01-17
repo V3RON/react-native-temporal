@@ -3,7 +3,10 @@ use std::ptr;
 use std::str::FromStr;
 
 use temporal_rs::sys::Temporal;
-use temporal_rs::{Duration, Instant};
+use temporal_rs::{
+    options::{DisplayCalendar, ToStringRoundingOptions},
+    Duration, Instant, PlainDate, PlainDateTime, PlainTime, TimeZone, ZonedDateTime,
+};
 use timezone_provider::tzif::CompiledTzdbProvider;
 
 // ============================================================================
@@ -283,9 +286,81 @@ pub extern "C" fn temporal_instant_compare(a: *const c_char, b: *const c_char) -
     
     CompareResult::success(instant_a.cmp(&instant_b) as i32)
 }
+
+// ============================================================================
+// Now API
 // ============================================================================
 
-/// Represents a Duration's component values for FFI.
+#[no_mangle]
+pub extern "C" fn temporal_now_plain_date_time_iso(tz_id: *const c_char) -> TemporalResult {
+    let tz_str = match parse_c_str(tz_id, "timezone id") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    match get_now_plain_date_time_string(tz_str) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get plain date time: {}", e)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn temporal_now_plain_date_iso(tz_id: *const c_char) -> TemporalResult {
+    let tz_str = match parse_c_str(tz_id, "timezone id") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    match get_now_plain_date_string(tz_str) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get plain date: {}", e)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn temporal_now_plain_time_iso(tz_id: *const c_char) -> TemporalResult {
+    let tz_str = match parse_c_str(tz_id, "timezone id") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    match get_now_plain_time_string(tz_str) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get plain time: {}", e)),
+    }
+}
+
+fn get_now_plain_date_time_string(tz_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let now = Temporal::utc_now();
+    let instant = now.instant()?;
+    let time_zone = TimeZone::try_from_str(tz_id)?;
+    let zdt = instant.to_zoned_date_time_iso(time_zone)?;
+    Ok(zdt
+        .to_plain_date_time()
+        .to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto)?)
+}
+
+fn get_now_plain_date_string(tz_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let now = Temporal::utc_now();
+    let instant = now.instant()?;
+    let time_zone = TimeZone::try_from_str(tz_id)?;
+    let zdt = instant.to_zoned_date_time_iso(time_zone)?;
+    Ok(zdt.to_plain_date().to_ixdtf_string(DisplayCalendar::Auto))
+}
+
+fn get_now_plain_time_string(tz_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let now = Temporal::utc_now();
+    let instant = now.instant()?;
+    let time_zone = TimeZone::try_from_str(tz_id)?;
+    let zdt = instant.to_zoned_date_time_iso(time_zone)?;
+    Ok(zdt
+        .to_plain_time()
+        .to_ixdtf_string(ToStringRoundingOptions::default())?)
+}
+
+// ============================================================================
+// Duration API
+// ============================================================================
 /// Note: microseconds and nanoseconds are clamped to i64 range for FFI safety.
 #[repr(C)]
 pub struct DurationComponents {
@@ -707,7 +782,10 @@ mod android {
     use jni::sys::{jint, jlong, jlongArray, jstring};
     use jni::JNIEnv;
 
-    use super::get_instant_now_string;
+    use super::{
+        get_instant_now_string, get_now_plain_date_string, get_now_plain_date_time_string,
+        get_now_plain_time_string,
+    };
     use temporal_rs::{Duration, Instant};
     use std::str::FromStr;
     use std::ptr;
@@ -1012,6 +1090,81 @@ mod android {
         };
         
         instant_a.cmp(&instant_b) as jint
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.nowPlainDateTimeISO()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_nowPlainDateTimeISO(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+    ) -> jstring {
+        let tz_str = parse_jstring(&mut env, &tz_id, "timezone id");
+        let tz_val = match tz_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        match get_now_plain_date_time_string(&tz_val) {
+            Ok(s) => env
+                .new_string(s)
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get plain date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.nowPlainDateISO()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_nowPlainDateISO(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+    ) -> jstring {
+        let tz_str = parse_jstring(&mut env, &tz_id, "timezone id");
+        let tz_val = match tz_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        match get_now_plain_date_string(&tz_val) {
+            Ok(s) => env
+                .new_string(s)
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get plain date: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.nowPlainTimeISO()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_nowPlainTimeISO(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+    ) -> jstring {
+        let tz_str = parse_jstring(&mut env, &tz_id, "timezone id");
+        let tz_val = match tz_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        match get_now_plain_time_string(&tz_val) {
+            Ok(s) => env
+                .new_string(s)
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get plain time: {}", e));
+                ptr::null_mut()
+            }
+        }
     }
 
     /// JNI function for `com.temporal.TemporalNative.durationFromString()`

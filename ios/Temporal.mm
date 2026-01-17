@@ -188,6 +188,30 @@ static NSString *extractResultValue(TemporalResult result) {
     return val;
 }
 
+// Now methods
+
+- (NSString *)nowTimeZoneId {
+    return [[NSTimeZone localTimeZone] name];
+}
+
+- (NSString *)nowPlainDateTimeISO:(NSString *)tz {
+    NSString *tzId = tz ?: [[NSTimeZone localTimeZone] name];
+    TemporalResult result = temporal_now_plain_date_time_iso([tzId UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)nowPlainDateISO:(NSString *)tz {
+    NSString *tzId = tz ?: [[NSTimeZone localTimeZone] name];
+    TemporalResult result = temporal_now_plain_date_iso([tzId UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)nowPlainTimeISO:(NSString *)tz {
+    NSString *tzId = tz ?: [[NSTimeZone localTimeZone] name];
+    TemporalResult result = temporal_now_plain_time_iso([tzId UTF8String]);
+    return extractResultValue(result);
+}
+
 // Duration methods
 
 - (NSString *)durationFromString:(NSString *)input {

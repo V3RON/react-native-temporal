@@ -65,6 +65,27 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.instantCompare(one, two).toDouble()
   }
 
+  // Now methods
+
+  override fun nowTimeZoneId(): String {
+    return java.util.TimeZone.getDefault().id
+  }
+
+  override fun nowPlainDateTimeISO(tz: String?): String {
+    val tzId = tz ?: java.util.TimeZone.getDefault().id
+    return TemporalNative.nowPlainDateTimeISO(tzId)
+  }
+
+  override fun nowPlainDateISO(tz: String?): String {
+    val tzId = tz ?: java.util.TimeZone.getDefault().id
+    return TemporalNative.nowPlainDateISO(tzId)
+  }
+
+  override fun nowPlainTimeISO(tz: String?): String {
+    val tzId = tz ?: java.util.TimeZone.getDefault().id
+    return TemporalNative.nowPlainTimeISO(tzId)
+  }
+
   // Duration methods
 
   override fun durationFromString(input: String): String {

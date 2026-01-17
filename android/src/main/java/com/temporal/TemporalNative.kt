@@ -41,6 +41,19 @@ object TemporalNative {
     external fun instantCompare(one: String, two: String): Int
 
     /**
+     * Now API
+     */
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun nowPlainDateTimeISO(tzId: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun nowPlainDateISO(tzId: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun nowPlainTimeISO(tzId: String): String
+
+    /**
      * Duration API
      */
 
