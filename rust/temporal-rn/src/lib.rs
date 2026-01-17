@@ -406,6 +406,8 @@ pub extern "C" fn temporal_plain_time_from_string(s: *const c_char) -> TemporalR
 }
 
 /// Creates a PlainTime from individual components.
+/// Validates ranges: hour (0-23), minute (0-59), second (0-59), 
+/// millisecond/microsecond/nanosecond (0-999).
 #[no_mangle]
 pub extern "C" fn temporal_plain_time_from_components(
     hour: u8,
@@ -415,6 +417,26 @@ pub extern "C" fn temporal_plain_time_from_components(
     microsecond: u16,
     nanosecond: u16,
 ) -> TemporalResult {
+    // Validate ranges
+    if hour > 23 {
+        return TemporalResult::range_error(&format!("Invalid hour: {} (must be 0-23)", hour));
+    }
+    if minute > 59 {
+        return TemporalResult::range_error(&format!("Invalid minute: {} (must be 0-59)", minute));
+    }
+    if second > 59 {
+        return TemporalResult::range_error(&format!("Invalid second: {} (must be 0-59)", second));
+    }
+    if millisecond > 999 {
+        return TemporalResult::range_error(&format!("Invalid millisecond: {} (must be 0-999)", millisecond));
+    }
+    if microsecond > 999 {
+        return TemporalResult::range_error(&format!("Invalid microsecond: {} (must be 0-999)", microsecond));
+    }
+    if nanosecond > 999 {
+        return TemporalResult::range_error(&format!("Invalid nanosecond: {} (must be 0-999)", nanosecond));
+    }
+
     match PlainTime::new(hour, minute, second, millisecond, microsecond, nanosecond) {
         Ok(time) => match time.to_ixdtf_string(ToStringRoundingOptions::default()) {
             Ok(s) => TemporalResult::success(s),
@@ -830,8 +852,12 @@ pub extern "C" fn temporal_duration_compare(a: *const c_char, b: *const c_char) 
     CompareResult::success(total_a.cmp(&total_b) as i32)
 }
 
+/// Sentinel value for "unchanged" component in durationWith.
+/// Matches JavaScript's Number.MIN_SAFE_INTEGER (-(2^53 - 1)).
+const UNCHANGED_SENTINEL: i64 = -9007199254740991;
+
 /// Creates a new duration by replacing specified components.
-/// Pass i64::MIN for components that should not be changed.
+/// Pass UNCHANGED_SENTINEL (-9007199254740991) for components that should not be changed.
 #[no_mangle]
 pub extern "C" fn temporal_duration_with(
     original: *const c_char,
@@ -851,21 +877,21 @@ pub extern "C" fn temporal_duration_with(
         Err(e) => return e,
     };
 
-    // Use original values for any component set to i64::MIN (sentinel for "unchanged")
-    let new_years = if years == i64::MIN { duration.years() } else { years };
-    let new_months = if months == i64::MIN { duration.months() } else { months };
-    let new_weeks = if weeks == i64::MIN { duration.weeks() } else { weeks };
-    let new_days = if days == i64::MIN { duration.days() } else { days };
-    let new_hours = if hours == i64::MIN { duration.hours() } else { hours };
-    let new_minutes = if minutes == i64::MIN { duration.minutes() } else { minutes };
-    let new_seconds = if seconds == i64::MIN { duration.seconds() } else { seconds };
-    let new_milliseconds = if milliseconds == i64::MIN { duration.milliseconds() } else { milliseconds };
-    let new_microseconds = if microseconds == i64::MIN {
+    // Use original values for any component set to UNCHANGED_SENTINEL (sentinel for "unchanged")
+    let new_years = if years == UNCHANGED_SENTINEL { duration.years() } else { years };
+    let new_months = if months == UNCHANGED_SENTINEL { duration.months() } else { months };
+    let new_weeks = if weeks == UNCHANGED_SENTINEL { duration.weeks() } else { weeks };
+    let new_days = if days == UNCHANGED_SENTINEL { duration.days() } else { days };
+    let new_hours = if hours == UNCHANGED_SENTINEL { duration.hours() } else { hours };
+    let new_minutes = if minutes == UNCHANGED_SENTINEL { duration.minutes() } else { minutes };
+    let new_seconds = if seconds == UNCHANGED_SENTINEL { duration.seconds() } else { seconds };
+    let new_milliseconds = if milliseconds == UNCHANGED_SENTINEL { duration.milliseconds() } else { milliseconds };
+    let new_microseconds = if microseconds == UNCHANGED_SENTINEL {
         duration.microseconds().clamp(i64::MIN as i128, i64::MAX as i128) as i64
     } else {
         microseconds
     };
-    let new_nanoseconds = if nanoseconds == i64::MIN {
+    let new_nanoseconds = if nanoseconds == UNCHANGED_SENTINEL {
         duration.nanoseconds().clamp(i64::MIN as i128, i64::MAX as i128) as i64
     } else {
         nanoseconds
@@ -1415,6 +1441,32 @@ mod android {
         microsecond: jint,
         nanosecond: jint,
     ) -> jstring {
+        // Validate ranges before casting to narrower types
+        if hour < 0 || hour > 23 {
+            throw_range_error(&mut env, &format!("Invalid hour: {} (must be 0-23)", hour));
+            return ptr::null_mut();
+        }
+        if minute < 0 || minute > 59 {
+            throw_range_error(&mut env, &format!("Invalid minute: {} (must be 0-59)", minute));
+            return ptr::null_mut();
+        }
+        if second < 0 || second > 59 {
+            throw_range_error(&mut env, &format!("Invalid second: {} (must be 0-59)", second));
+            return ptr::null_mut();
+        }
+        if millisecond < 0 || millisecond > 999 {
+            throw_range_error(&mut env, &format!("Invalid millisecond: {} (must be 0-999)", millisecond));
+            return ptr::null_mut();
+        }
+        if microsecond < 0 || microsecond > 999 {
+            throw_range_error(&mut env, &format!("Invalid microsecond: {} (must be 0-999)", microsecond));
+            return ptr::null_mut();
+        }
+        if nanosecond < 0 || nanosecond > 999 {
+            throw_range_error(&mut env, &format!("Invalid nanosecond: {} (must be 0-999)", nanosecond));
+            return ptr::null_mut();
+        }
+
         match PlainTime::new(
             hour as u8,
             minute as u8,
@@ -1873,6 +1925,10 @@ mod android {
         total_a.cmp(&total_b) as jint
     }
 
+    /// Sentinel value for "unchanged" component in durationWith.
+    /// Matches JavaScript's Number.MIN_SAFE_INTEGER (-(2^53 - 1)).
+    const UNCHANGED_SENTINEL: i64 = -9007199254740991;
+
     /// JNI function for `com.temporal.TemporalNative.durationWith()`
     #[no_mangle]
     pub extern "system" fn Java_com_temporal_TemporalNative_durationWith(
@@ -1895,21 +1951,21 @@ mod android {
             None => return ptr::null_mut(),
         };
 
-        // Use original values for any component set to i64::MIN (sentinel)
-        let new_years = if years == i64::MIN { duration.years() } else { years };
-        let new_months = if months == i64::MIN { duration.months() } else { months };
-        let new_weeks = if weeks == i64::MIN { duration.weeks() } else { weeks };
-        let new_days = if days == i64::MIN { duration.days() } else { days };
-        let new_hours = if hours == i64::MIN { duration.hours() } else { hours };
-        let new_minutes = if minutes == i64::MIN { duration.minutes() } else { minutes };
-        let new_seconds = if seconds == i64::MIN { duration.seconds() } else { seconds };
-        let new_milliseconds = if milliseconds == i64::MIN { duration.milliseconds() } else { milliseconds };
-        let new_microseconds = if microseconds == i64::MIN {
+        // Use original values for any component set to UNCHANGED_SENTINEL (sentinel)
+        let new_years = if years == UNCHANGED_SENTINEL { duration.years() } else { years };
+        let new_months = if months == UNCHANGED_SENTINEL { duration.months() } else { months };
+        let new_weeks = if weeks == UNCHANGED_SENTINEL { duration.weeks() } else { weeks };
+        let new_days = if days == UNCHANGED_SENTINEL { duration.days() } else { days };
+        let new_hours = if hours == UNCHANGED_SENTINEL { duration.hours() } else { hours };
+        let new_minutes = if minutes == UNCHANGED_SENTINEL { duration.minutes() } else { minutes };
+        let new_seconds = if seconds == UNCHANGED_SENTINEL { duration.seconds() } else { seconds };
+        let new_milliseconds = if milliseconds == UNCHANGED_SENTINEL { duration.milliseconds() } else { milliseconds };
+        let new_microseconds = if microseconds == UNCHANGED_SENTINEL {
             duration.microseconds().clamp(i64::MIN as i128, i64::MAX as i128) as i64
         } else {
             microseconds
         };
-        let new_nanoseconds = if nanoseconds == i64::MIN {
+        let new_nanoseconds = if nanoseconds == UNCHANGED_SENTINEL {
             duration.nanoseconds().clamp(i64::MIN as i128, i64::MAX as i128) as i64
         } else {
             nanoseconds

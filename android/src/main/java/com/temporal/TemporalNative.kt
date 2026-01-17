@@ -169,7 +169,7 @@ object TemporalNative {
 
     /**
      * Creates a new duration by replacing specified components.
-     * Pass Long.MIN_VALUE for components that should not be changed.
+     * Pass -9007199254740991 (Number.MIN_SAFE_INTEGER) for components that should not be changed.
      * Throws TemporalRangeError for invalid values, TemporalTypeError for null input.
      */
     @Throws(TemporalRangeError::class, TemporalTypeError::class)
