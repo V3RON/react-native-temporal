@@ -62,6 +62,46 @@ void temporal_free_compare_result(CompareResult *result);
 char *temporal_instant_now(void);
 
 /**
+ * Parses an ISO 8601 string into an Instant and returns the normalized string.
+ */
+TemporalResult temporal_instant_from_string(const char *s);
+
+/**
+ * Creates an Instant from epoch milliseconds.
+ */
+TemporalResult temporal_instant_from_epoch_milliseconds(int64_t ms);
+
+/**
+ * Creates an Instant from epoch nanoseconds (string input).
+ */
+TemporalResult temporal_instant_from_epoch_nanoseconds(const char *ns_str);
+
+/**
+ * Returns the epoch milliseconds of an Instant (as string).
+ */
+TemporalResult temporal_instant_epoch_milliseconds(const char *s);
+
+/**
+ * Returns the epoch nanoseconds of an Instant (as string).
+ */
+TemporalResult temporal_instant_epoch_nanoseconds(const char *s);
+
+/**
+ * Adds a duration to an instant.
+ */
+TemporalResult temporal_instant_add(const char *instant_str, const char *duration_str);
+
+/**
+ * Subtracts a duration from an instant.
+ */
+TemporalResult temporal_instant_subtract(const char *instant_str, const char *duration_str);
+
+/**
+ * Compares two instants.
+ */
+CompareResult temporal_instant_compare(const char *a, const char *b);
+
+/**
  * Frees a string allocated by temporal functions.
  */
 void temporal_free_string(char *s);

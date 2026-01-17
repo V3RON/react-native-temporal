@@ -3,6 +3,14 @@ import { TurboModuleRegistry, type TurboModule } from 'react-native';
 export interface Spec extends TurboModule {
   multiply(a: number, b: number): number;
   instantNow(): string;
+  instantFromString(s: string): string;
+  instantFromEpochMilliseconds(ms: number): string;
+  instantFromEpochNanoseconds(ns: string): string;
+  instantEpochMilliseconds(s: string): number;
+  instantEpochNanoseconds(s: string): string;
+  instantAdd(instant: string, duration: string): string;
+  instantSubtract(instant: string, duration: string): string;
+  instantCompare(one: string, two: string): number;
 
   // Duration methods - minimal bridge, all logic in native
 

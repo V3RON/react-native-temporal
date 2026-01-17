@@ -31,6 +31,40 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.instantNow()
   }
 
+  override fun instantFromString(s: String): String {
+    return TemporalNative.instantFromString(s)
+  }
+
+  override fun instantFromEpochMilliseconds(ms: Double): String {
+    return TemporalNative.instantFromEpochMilliseconds(ms.toLong())
+  }
+
+  override fun instantFromEpochNanoseconds(nsStr: String): String {
+    return TemporalNative.instantFromEpochNanoseconds(nsStr)
+  }
+
+  override fun instantEpochMilliseconds(s: String): Double {
+    // Return as double (React Native doesn't support Long well)
+    val msStr = TemporalNative.instantEpochMilliseconds(s)
+    return msStr.toDouble()
+  }
+
+  override fun instantEpochNanoseconds(s: String): String {
+    return TemporalNative.instantEpochNanoseconds(s)
+  }
+
+  override fun instantAdd(instant: String, duration: String): String {
+    return TemporalNative.instantAdd(instant, duration)
+  }
+
+  override fun instantSubtract(instant: String, duration: String): String {
+    return TemporalNative.instantSubtract(instant, duration)
+  }
+
+  override fun instantCompare(one: String, two: String): Double {
+    return TemporalNative.instantCompare(one, two).toDouble()
+  }
+
   // Duration methods
 
   override fun durationFromString(input: String): String {

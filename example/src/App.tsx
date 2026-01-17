@@ -48,7 +48,7 @@ export default function App() {
 
   const updateInstant = () => {
     const instant = Instant.now();
-    setCurrentInstant(instant);
+    setCurrentInstant(instant.toString());
   };
 
   const testDurationParsing = () => {

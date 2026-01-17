@@ -4,14 +4,8 @@ export function multiply(a: number, b: number): number {
   return Temporal.multiply(a, b);
 }
 
-export function instantNow(): string {
-  return Temporal.instantNow();
-}
-
-export const Instant = {
-  now: instantNow,
-};
-
-// Export Duration class
+// Export Temporal types
+export { Instant } from './types/Instant';
 export { Duration } from './types/Duration';
+export { Now } from './types/Now';
 export type { DurationLike } from './types/Duration';

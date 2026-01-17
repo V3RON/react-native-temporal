@@ -16,6 +16,30 @@ object TemporalNative {
     @Throws(TemporalRangeError::class)
     external fun instantNow(): String
 
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantFromString(s: String): String
+
+    @Throws(TemporalRangeError::class)
+    external fun instantFromEpochMilliseconds(ms: Long): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantFromEpochNanoseconds(nsStr: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantEpochMilliseconds(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantEpochNanoseconds(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantAdd(instant: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantSubtract(instant: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantCompare(one: String, two: String): Int
+
     /**
      * Duration API
      */

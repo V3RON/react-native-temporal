@@ -89,6 +89,105 @@ static NSString *extractResultValue(TemporalResult result) {
     return nsResult;
 }
 
+- (NSString *)instantFromString:(NSString *)s {
+    if (s == nil) {
+        THROW_TYPE_ERROR(@"Instant string cannot be null");
+    }
+    const char *sCStr = [s UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid instant string encoding");
+    }
+    TemporalResult result = temporal_instant_from_string(sCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantFromEpochMilliseconds:(double)ms {
+    TemporalResult result = temporal_instant_from_epoch_milliseconds((int64_t)ms);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantFromEpochNanoseconds:(NSString *)nsStr {
+    if (nsStr == nil) {
+        THROW_TYPE_ERROR(@"Nanoseconds string cannot be null");
+    }
+    const char *nsCStr = [nsStr UTF8String];
+    if (nsCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid nanoseconds string encoding");
+    }
+    TemporalResult result = temporal_instant_from_epoch_nanoseconds(nsCStr);
+    return extractResultValue(result);
+}
+
+- (double)instantEpochMilliseconds:(NSString *)instant {
+    if (instant == nil) {
+        THROW_TYPE_ERROR(@"Instant string cannot be null");
+    }
+    const char *sCStr = [instant UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid instant string encoding");
+    }
+    TemporalResult result = temporal_instant_epoch_milliseconds(sCStr);
+    NSString *val = extractResultValue(result);
+    return [val doubleValue];
+}
+
+- (NSString *)instantEpochNanoseconds:(NSString *)instant {
+    if (instant == nil) {
+        THROW_TYPE_ERROR(@"Instant string cannot be null");
+    }
+    const char *sCStr = [instant UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid instant string encoding");
+    }
+    TemporalResult result = temporal_instant_epoch_nanoseconds(sCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantAdd:(NSString *)instant duration:(NSString *)duration {
+    if (instant == nil || duration == nil) {
+        THROW_TYPE_ERROR(@"Arguments cannot be null");
+    }
+    const char *iCStr = [instant UTF8String];
+    const char *dCStr = [duration UTF8String];
+    if (iCStr == NULL || dCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid string encoding");
+    }
+    TemporalResult result = temporal_instant_add(iCStr, dCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantSubtract:(NSString *)instant duration:(NSString *)duration {
+    if (instant == nil || duration == nil) {
+        THROW_TYPE_ERROR(@"Arguments cannot be null");
+    }
+    const char *iCStr = [instant UTF8String];
+    const char *dCStr = [duration UTF8String];
+    if (iCStr == NULL || dCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid string encoding");
+    }
+    TemporalResult result = temporal_instant_subtract(iCStr, dCStr);
+    return extractResultValue(result);
+}
+
+- (double)instantCompare:(NSString *)one two:(NSString *)two {
+    if (one == nil || two == nil) {
+        THROW_TYPE_ERROR(@"Arguments cannot be null");
+    }
+    const char *aCStr = [one UTF8String];
+    const char *bCStr = [two UTF8String];
+    if (aCStr == NULL || bCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid string encoding");
+    }
+    CompareResult result = temporal_instant_compare(aCStr, bCStr);
+    if (result.error_type != TEMPORAL_ERROR_NONE) {
+        throwCompareError(&result);
+        return 0;
+    }
+    double val = (double)result.value;
+    temporal_free_compare_result(&result);
+    return val;
+}
+
 // Duration methods
 
 - (NSString *)durationFromString:(NSString *)input {

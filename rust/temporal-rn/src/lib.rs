@@ -3,7 +3,7 @@ use std::ptr;
 use std::str::FromStr;
 
 use temporal_rs::sys::Temporal;
-use temporal_rs::Duration;
+use temporal_rs::{Duration, Instant};
 use timezone_provider::tzif::CompiledTzdbProvider;
 
 // ============================================================================
@@ -123,7 +123,166 @@ fn get_instant_now_string() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 // ============================================================================
-// Duration API
+// Instant API (Expanded)
+// ============================================================================
+
+/// Parses an ISO 8601 string into an Instant and returns the normalized string.
+#[no_mangle]
+pub extern "C" fn temporal_instant_from_string(s: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(s, "instant string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    match Instant::from_str(s_str) {
+        Ok(instant) => {
+            let provider = CompiledTzdbProvider::default();
+            match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid instant '{}': {}", s_str, e)),
+    }
+}
+
+/// Creates an Instant from epoch milliseconds.
+#[no_mangle]
+pub extern "C" fn temporal_instant_from_epoch_milliseconds(ms: i64) -> TemporalResult {
+    // Instant::from_epoch_milliseconds is the likely API, or we construct via ns
+    // Using i128 arithmetic to be safe: ms * 1,000,000
+    let ns = (ms as i128).saturating_mul(1_000_000);
+    match Instant::try_new(ns) {
+        Ok(instant) => {
+            let provider = CompiledTzdbProvider::default();
+            match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid epoch milliseconds: {}", e)),
+    }
+}
+
+/// Creates an Instant from epoch nanoseconds (string input for i128 precision).
+#[no_mangle]
+pub extern "C" fn temporal_instant_from_epoch_nanoseconds(ns_str: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(ns_str, "nanoseconds string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    let ns = match i128::from_str(s_str) {
+        Ok(n) => n,
+        Err(_) => return TemporalResult::range_error("Invalid nanoseconds string"),
+    };
+
+    match Instant::try_new(ns) {
+        Ok(instant) => {
+            let provider = CompiledTzdbProvider::default();
+            match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid epoch nanoseconds: {}", e)),
+    }
+}
+
+/// Returns the epoch milliseconds of an Instant.
+#[no_mangle]
+pub extern "C" fn temporal_instant_epoch_milliseconds(s: *const c_char) -> TemporalResult {
+    let instant = match parse_instant(s, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    // Format as string to return via TemporalResult (which expects char*)
+    // Alternatively we could change return type, but keeping uniform interface is good.
+    // However, JS side expects a number.
+    // For now, let's return string and parse in JS/Native layer?
+    // Actually, getting a primitive value out might be better done with a specific function returning double/int64.
+    // But TemporalResult standardizes error handling.
+    // I'll return string for consistency and parse in Kotlin/ObjC/JS.
+    let ms = instant.epoch_milliseconds();
+    TemporalResult::success(ms.to_string())
+}
+
+/// Returns the epoch nanoseconds of an Instant (as string).
+#[no_mangle]
+pub extern "C" fn temporal_instant_epoch_nanoseconds(s: *const c_char) -> TemporalResult {
+    let instant = match parse_instant(s, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    let ns = instant.epoch_nanoseconds();
+    TemporalResult::success(ns.0.to_string())
+}
+
+/// Adds a duration to an instant.
+#[no_mangle]
+pub extern "C" fn temporal_instant_add(instant_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    
+    match instant.add(&duration) {
+        Ok(result) => {
+            let provider = CompiledTzdbProvider::default();
+            match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to add duration: {}", e)),
+    }
+}
+
+/// Subtracts a duration from an instant.
+#[no_mangle]
+pub extern "C" fn temporal_instant_subtract(instant_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    
+    match instant.subtract(&duration) {
+        Ok(result) => {
+            let provider = CompiledTzdbProvider::default();
+            match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to subtract duration: {}", e)),
+    }
+}
+
+/// Compares two instants.
+#[no_mangle]
+pub extern "C" fn temporal_instant_compare(a: *const c_char, b: *const c_char) -> CompareResult {
+    let instant_a = match parse_instant(a, "first instant") {
+        Ok(i) => i,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+    let instant_b = match parse_instant(b, "second instant") {
+        Ok(i) => i,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+    
+    CompareResult::success(instant_a.cmp(&instant_b) as i32)
+}
 // ============================================================================
 
 /// Represents a Duration's component values for FFI.
@@ -489,6 +648,12 @@ fn parse_duration(s: *const c_char, param_name: &str) -> Result<Duration, Tempor
         .map_err(|e| TemporalResult::range_error(&format!("Invalid duration '{}': {}", str_val, e)))
 }
 
+fn parse_instant(s: *const c_char, param_name: &str) -> Result<Instant, TemporalResult> {
+    let str_val = parse_c_str(s, param_name)?;
+    Instant::from_str(str_val)
+        .map_err(|e| TemporalResult::range_error(&format!("Invalid instant '{}': {}", str_val, e)))
+}
+
 fn duration_binary_op<F>(
     a: *const c_char,
     b: *const c_char,
@@ -538,15 +703,17 @@ where
 
 #[cfg(target_os = "android")]
 mod android {
-    use jni::objects::{JClass, JLongArray, JString};
-    use jni::sys::{jboolean, jint, jlong, jlongArray, jstring};
+    use jni::objects::{JClass, JString};
+    use jni::sys::{jint, jlong, jlongArray, jstring};
     use jni::JNIEnv;
 
     use super::get_instant_now_string;
-    use temporal_rs::Duration;
+    use temporal_rs::{Duration, Instant};
     use std::str::FromStr;
     use std::ptr;
 
+    use timezone_provider::tzif::CompiledTzdbProvider;
+    
     const RANGE_ERROR_CLASS: &str = "com/temporal/TemporalRangeError";
     const TYPE_ERROR_CLASS: &str = "com/temporal/TemporalTypeError";
 
@@ -587,6 +754,18 @@ mod android {
         }
     }
 
+    /// Parses an instant string, throwing RangeError if invalid
+    fn parse_instant(env: &mut JNIEnv, s: &JString, name: &str) -> Option<Instant> {
+        let s_str = parse_jstring(env, s, name)?;
+        match Instant::from_str(&s_str) {
+            Ok(i) => Some(i),
+            Err(e) => {
+                throw_range_error(env, &format!("Invalid instant '{}': {}", s_str, e));
+                None
+            }
+        }
+    }
+
     /// JNI function for `com.temporal.TemporalNative.instantNow()`
     #[no_mangle]
     pub extern "system" fn Java_com_temporal_TemporalNative_instantNow(
@@ -606,6 +785,233 @@ mod android {
                 ptr::null_mut()
             }
         }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantFromString()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantFromString(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let instant = match parse_instant(&mut env, &s, "instant string") {
+            Some(i) => i,
+            None => return ptr::null_mut(),
+        };
+        let provider = CompiledTzdbProvider::default();
+        match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+            Ok(s) => env
+                .new_string(s)
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantFromEpochMilliseconds()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantFromEpochMilliseconds(
+        mut env: JNIEnv,
+        _class: JClass,
+        ms: jlong,
+    ) -> jstring {
+        let ns = (ms as i128).saturating_mul(1_000_000);
+        match Instant::try_new(ns) {
+            Ok(instant) => {
+                let provider = CompiledTzdbProvider::default();
+                match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env
+                        .new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid epoch milliseconds: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantFromEpochNanoseconds()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantFromEpochNanoseconds(
+        mut env: JNIEnv,
+        _class: JClass,
+        ns_str: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &ns_str, "nanoseconds string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        let ns = match i128::from_str(&s_val) {
+            Ok(n) => n,
+            Err(_) => {
+                throw_range_error(&mut env, "Invalid nanoseconds string");
+                return ptr::null_mut();
+            }
+        };
+
+        match Instant::try_new(ns) {
+            Ok(instant) => {
+                let provider = CompiledTzdbProvider::default();
+                match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env
+                        .new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid epoch nanoseconds: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantEpochMilliseconds()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantEpochMilliseconds(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let instant = match parse_instant(&mut env, &s, "instant") {
+            Some(i) => i,
+            None => return ptr::null_mut(),
+        };
+        let ms = instant.epoch_milliseconds();
+        env.new_string(ms.to_string())
+            .map(|js| js.into_raw())
+            .unwrap_or(ptr::null_mut())
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantEpochNanoseconds()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantEpochNanoseconds(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let instant = match parse_instant(&mut env, &s, "instant") {
+            Some(i) => i,
+            None => return ptr::null_mut(),
+        };
+        let ns = instant.epoch_nanoseconds();
+        env.new_string(ns.0.to_string())
+            .map(|js| js.into_raw())
+            .unwrap_or(ptr::null_mut())
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantAdd()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantAdd(
+        mut env: JNIEnv,
+        _class: JClass,
+        instant_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let instant = match parse_instant(&mut env, &instant_str, "instant") {
+            Some(i) => i,
+            None => return ptr::null_mut(),
+        };
+        let duration = match parse_duration(&mut env, &duration_str, "duration") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        
+        match instant.add(&duration) {
+            Ok(result) => {
+                let provider = CompiledTzdbProvider::default();
+                match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env
+                        .new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to add duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantSubtract()`
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantSubtract(
+        mut env: JNIEnv,
+        _class: JClass,
+        instant_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let instant = match parse_instant(&mut env, &instant_str, "instant") {
+            Some(i) => i,
+            None => return ptr::null_mut(),
+        };
+        let duration = match parse_duration(&mut env, &duration_str, "duration") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        
+        match instant.subtract(&duration) {
+            Ok(result) => {
+                let provider = CompiledTzdbProvider::default();
+                match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env
+                        .new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to subtract duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.instantCompare()`
+
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_instantCompare(
+        mut env: JNIEnv,
+        _class: JClass,
+        a: JString,
+        b: JString,
+    ) -> jint {
+        let instant_a = match parse_instant(&mut env, &a, "first instant") {
+            Some(i) => i,
+            None => return 0,
+        };
+        let instant_b = match parse_instant(&mut env, &b, "second instant") {
+            Some(i) => i,
+            None => return 0,
+        };
+        
+        instant_a.cmp(&instant_b) as jint
     }
 
     /// JNI function for `com.temporal.TemporalNative.durationFromString()`
