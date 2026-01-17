@@ -35,12 +35,35 @@ By leveraging the same implementation used in V8, `react-native-temporal` ensure
 
 ## Features
 
-- ✅ Full Temporal API support
 - ✅ Native performance via Rust FFI
 - ✅ Works with both iOS and Android
 - ✅ New Architecture (TurboModules) ready
 - ✅ Spec-compliant date/time handling
 - ✅ Proper time zone and calendar support
+
+## API Implementation Status
+
+| API | Description | Status |
+|-----|-------------|--------|
+| **Duration** | Represents a length of time (days, hours, minutes, etc.) | ✅ Implemented |
+| **Instant** | A fixed point in time (UTC timestamp) | 🚧 Mostly implemented |
+| **Now** | System time access utilities | ✅ Implemented |
+| **PlainTime** | Time of day without date or timezone | 🚧 Mostly implemented |
+| **Calendar** | Calendar system support (ISO, Buddhist, Chinese, etc.) | 🚧 Partial |
+| **PlainDate** | Calendar date without time or timezone | ❌ Not implemented |
+| **PlainDateTime** | Date and time without timezone | ❌ Not implemented |
+| **PlainYearMonth** | Year and month without day | ❌ Not implemented |
+| **PlainMonthDay** | Month and day without year | ❌ Not implemented |
+| **TimeZone** | IANA timezone or fixed UTC offset | ❌ Not implemented |
+| **ZonedDateTime** | Date/time with timezone (fully aware) | ❌ Not implemented |
+
+### Implementation Details
+
+- **Duration**: Full API including `from`, all component getters, `add`, `subtract`, `negated`, `abs`, `compare`, `with`
+- **Instant**: `now`, `from`, `fromEpochMilliseconds`, `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`, `subtract`, `compare`, `equals` (missing: `until`, `since`, `round`)
+- **Now**: `instant`, `timeZoneId`, `plainDateTimeISO`, `plainDateISO`, `plainTimeISO`
+- **PlainTime**: `from`, all component getters, `add`, `subtract`, `with`, `compare`, `equals` (missing: `until`, `since`, `round`)
+- **Calendar**: `from`, `id` getter (missing: built-in calendar constants)
 
 ## Contributing
 
