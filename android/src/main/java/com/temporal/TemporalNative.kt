@@ -83,6 +83,16 @@ object TemporalNative {
     external fun plainTimeCompare(one: String, two: String): Int
 
     /**
+     * Calendar API
+     */
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun calendarFrom(id: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun calendarId(id: String): String
+
+    /**
      * Duration API
      */
 

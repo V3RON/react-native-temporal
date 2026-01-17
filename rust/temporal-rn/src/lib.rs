@@ -5,7 +5,7 @@ use std::str::FromStr;
 use temporal_rs::sys::Temporal;
 use temporal_rs::{
     options::{DisplayCalendar, ToStringRoundingOptions},
-    Duration, Instant, PlainDate, PlainDateTime, PlainTime, TimeZone, ZonedDateTime,
+    Calendar, Duration, Instant, PlainDate, PlainDateTime, PlainTime, TimeZone, ZonedDateTime,
 };
 use timezone_provider::tzif::CompiledTzdbProvider;
 
@@ -518,6 +518,40 @@ pub extern "C" fn temporal_plain_time_compare(a: *const c_char, b: *const c_char
 }
 
 // ============================================================================
+// Calendar API
+// ============================================================================
+
+/// Gets a Calendar from a string identifier.
+#[no_mangle]
+pub extern "C" fn temporal_calendar_from(id: *const c_char) -> TemporalResult {
+    let id_str = match parse_c_str(id, "calendar identifier") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    match Calendar::from_str(id_str) {
+        Ok(calendar) => TemporalResult::success(calendar.identifier().to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Invalid calendar identifier '{}': {}", id_str, e)),
+    }
+}
+
+/// Gets the identifier of a calendar.
+#[no_mangle]
+pub extern "C" fn temporal_calendar_id(id: *const c_char) -> TemporalResult {
+    // This function essentially normalizes the calendar ID
+    // If the input is already a valid ID, it returns it.
+    let id_str = match parse_c_str(id, "calendar identifier") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    match Calendar::from_str(id_str) {
+        Ok(calendar) => TemporalResult::success(calendar.identifier().to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Invalid calendar identifier '{}': {}", id_str, e)),
+    }
+}
+
+// ============================================================================
 // Duration API
 
 // ============================================================================
@@ -953,7 +987,7 @@ mod android {
         get_now_plain_time_string,
     };
     use temporal_rs::{
-        options::ToStringRoundingOptions, Duration, Instant, PlainTime,
+        options::ToStringRoundingOptions, Calendar, Duration, Instant, PlainTime,
     };
     use std::str::FromStr;
     use std::ptr;
@@ -1534,6 +1568,42 @@ mod android {
         };
 
         time_a.cmp(&time_b) as jint
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.calendarFrom()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_calendarFrom(
+        mut env: JNIEnv,
+        _class: JClass,
+        id: JString,
+    ) -> jstring {
+        let id_str = parse_jstring(&mut env, &id, "calendar identifier");
+        let id_val = match id_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        match Calendar::from_str(&id_val) {
+            Ok(calendar) => env
+                .new_string(calendar.identifier().to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid calendar identifier '{}': {}", id_val, e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.calendarId()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_calendarId(
+        mut env: JNIEnv,
+        _class: JClass,
+        id: JString,
+    ) -> jstring {
+        // Just reusing calendarFrom logic since ID access is basically normalization
+        Java_com_temporal_TemporalNative_calendarFrom(env, _class, id)
     }
 
     /// JNI function for `com.temporal.TemporalNative.durationFromString()`

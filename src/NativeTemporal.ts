@@ -33,6 +33,10 @@ export interface Spec extends TurboModule {
   plainTimeSubtract(time: string, duration: string): string;
   plainTimeCompare(one: string, two: string): number;
 
+  // Calendar methods
+  calendarFrom(id: string): string;
+  calendarId(id: string): string;
+
   // Duration methods - minimal bridge, all logic in native
 
   /**

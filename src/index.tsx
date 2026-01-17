@@ -9,5 +9,6 @@ export { Instant } from './types/Instant';
 export { Duration } from './types/Duration';
 export { Now } from './types/Now';
 export { PlainTime } from './types/PlainTime';
+export { Calendar } from './types/Calendar';
 export type { DurationLike } from './types/Duration';
 export type { PlainTimeLike } from './types/PlainTime';

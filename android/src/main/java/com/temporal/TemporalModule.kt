@@ -131,6 +131,16 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.plainTimeCompare(one, two).toDouble()
   }
 
+  // Calendar methods
+
+  override fun calendarFrom(id: String): String {
+    return TemporalNative.calendarFrom(id)
+  }
+
+  override fun calendarId(id: String): String {
+    return TemporalNative.calendarId(id)
+  }
+
   // Duration methods
 
   override fun durationFromString(input: String): String {

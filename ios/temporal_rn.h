@@ -171,6 +171,20 @@ TemporalResult temporal_plain_time_subtract(const char *time_str, const char *du
  */
 CompareResult temporal_plain_time_compare(const char *a, const char *b);
 
+// ============================================================================
+// Calendar API
+// ============================================================================
+
+/**
+ * Gets a Calendar from a string identifier.
+ */
+TemporalResult temporal_calendar_from(const char *id);
+
+/**
+ * Gets the identifier of a calendar.
+ */
+TemporalResult temporal_calendar_id(const char *id);
+
 /**
  * Frees a string allocated by temporal functions.
  */

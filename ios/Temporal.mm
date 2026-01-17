@@ -314,6 +314,32 @@ static NSString *extractResultValue(TemporalResult result) {
     return val;
 }
 
+// Calendar methods
+
+- (NSString *)calendarFrom:(NSString *)id {
+    if (id == nil) {
+        THROW_TYPE_ERROR(@"Calendar identifier cannot be null");
+    }
+    const char *idCStr = [id UTF8String];
+    if (idCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid calendar identifier encoding");
+    }
+    TemporalResult result = temporal_calendar_from(idCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)calendarId:(NSString *)id {
+    if (id == nil) {
+        THROW_TYPE_ERROR(@"Calendar identifier cannot be null");
+    }
+    const char *idCStr = [id UTF8String];
+    if (idCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid calendar identifier encoding");
+    }
+    TemporalResult result = temporal_calendar_id(idCStr);
+    return extractResultValue(result);
+}
+
 // Duration methods
 
 - (NSString *)durationFromString:(NSString *)input {
