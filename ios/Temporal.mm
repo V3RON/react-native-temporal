@@ -314,6 +314,111 @@ static NSString *extractResultValue(TemporalResult result) {
     return val;
 }
 
+// PlainDate methods
+
+- (NSString *)plainDateFromString:(NSString *)s {
+    if (s == nil) {
+        THROW_TYPE_ERROR(@"PlainDate string cannot be null");
+    }
+    const char *sCStr = [s UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid plain date string encoding");
+    }
+    TemporalResult result = temporal_plain_date_from_string(sCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateFromComponents:(double)year
+                               month:(double)month
+                                 day:(double)day
+                          calendarId:(NSString *)calendarId {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_date_from_components((int32_t)year, (uint8_t)month, (uint8_t)day, cIdCStr);
+    return extractResultValue(result);
+}
+
+- (NSArray<NSNumber *> *)plainDateGetAllComponents:(NSString *)s {
+    if (s == nil) {
+        THROW_TYPE_ERROR(@"PlainDate string cannot be null");
+    }
+    const char *sCStr = [s UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid plain date string encoding");
+    }
+
+    PlainDateComponents c;
+    temporal_plain_date_get_components(sCStr, &c);
+
+    if (c.is_valid == 0) {
+        THROW_RANGE_ERROR(@"Invalid plain date");
+    }
+
+    return @[
+        @(c.year), @(c.month), @(c.day),
+        @(c.day_of_week), @(c.day_of_year), @(c.week_of_year), @(c.year_of_week),
+        @(c.days_in_week), @(c.days_in_month), @(c.days_in_year), @(c.months_in_year),
+        @(c.in_leap_year)
+    ];
+}
+
+- (NSString *)plainDateGetMonthCode:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_date_get_month_code([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateGetCalendar:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_date_get_calendar([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateAdd:(NSString *)s duration:(NSString *)duration {
+    if (!s || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_add([s UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateSubtract:(NSString *)s duration:(NSString *)duration {
+    if (!s || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_subtract([s UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (double)plainDateCompare:(NSString *)a b:(NSString *)b {
+    if (!a || !b) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    CompareResult result = temporal_plain_date_compare([a UTF8String], [b UTF8String]);
+    if (result.error_type != TEMPORAL_ERROR_NONE) {
+        throwCompareError(&result);
+        return 0;
+    }
+    double val = (double)result.value;
+    temporal_free_compare_result(&result);
+    return val;
+}
+
+- (NSString *)plainDateWith:(NSString *)s
+                       year:(double)year
+                      month:(double)month
+                        day:(double)day
+                 calendarId:(NSString *)calendarId {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_date_with([s UTF8String], (int32_t)year, (int32_t)month, (int32_t)day, cIdCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateUntil:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_until([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainDateSince:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_date_since([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
 // Calendar methods
 
 - (NSString *)calendarFrom:(NSString *)id {

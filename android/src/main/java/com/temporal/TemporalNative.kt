@@ -83,6 +83,42 @@ object TemporalNative {
     external fun plainTimeCompare(one: String, two: String): Int
 
     /**
+     * PlainDate API
+     */
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateFromComponents(year: Int, month: Int, day: Int, calendarId: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateGetAllComponents(s: String): LongArray
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateGetMonthCode(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateGetCalendar(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateAdd(date: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateSubtract(date: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateCompare(a: String, b: String): Int
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateWith(date: String, year: Int, month: Int, day: Int, calendarId: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateUntil(one: String, two: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainDateSince(one: String, two: String): String
+
+    /**
      * Calendar API
      */
 

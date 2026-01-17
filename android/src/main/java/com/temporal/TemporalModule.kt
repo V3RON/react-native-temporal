@@ -131,6 +131,68 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.plainTimeCompare(one, two).toDouble()
   }
 
+  // PlainDate methods
+
+  override fun plainDateFromString(s: String): String {
+    return TemporalNative.plainDateFromString(s)
+  }
+
+  override fun plainDateFromComponents(
+    year: Double,
+    month: Double,
+    day: Double,
+    calendarId: String?
+  ): String {
+    return TemporalNative.plainDateFromComponents(year.toInt(), month.toInt(), day.toInt(), calendarId)
+  }
+
+  override fun plainDateGetAllComponents(s: String): WritableArray {
+    val components = TemporalNative.plainDateGetAllComponents(s)
+    val result = WritableNativeArray()
+    for (value in components) {
+      result.pushDouble(value.toDouble())
+    }
+    return result
+  }
+
+  override fun plainDateGetMonthCode(s: String): String {
+    return TemporalNative.plainDateGetMonthCode(s)
+  }
+
+  override fun plainDateGetCalendar(s: String): String {
+    return TemporalNative.plainDateGetCalendar(s)
+  }
+
+  override fun plainDateAdd(date: String, duration: String): String {
+    return TemporalNative.plainDateAdd(date, duration)
+  }
+
+  override fun plainDateSubtract(date: String, duration: String): String {
+    return TemporalNative.plainDateSubtract(date, duration)
+  }
+
+  override fun plainDateCompare(a: String, b: String): Double {
+    return TemporalNative.plainDateCompare(a, b).toDouble()
+  }
+
+  override fun plainDateWith(
+    date: String,
+    year: Double,
+    month: Double,
+    day: Double,
+    calendarId: String?
+  ): String {
+    return TemporalNative.plainDateWith(date, year.toInt(), month.toInt(), day.toInt(), calendarId)
+  }
+
+  override fun plainDateUntil(one: String, two: String): String {
+    return TemporalNative.plainDateUntil(one, two)
+  }
+
+  override fun plainDateSince(one: String, two: String): String {
+    return TemporalNative.plainDateSince(one, two)
+  }
+
   // Calendar methods
 
   override fun calendarFrom(id: String): String {

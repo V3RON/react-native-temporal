@@ -172,6 +172,38 @@ TemporalResult temporal_plain_time_subtract(const char *time_str, const char *du
 CompareResult temporal_plain_time_compare(const char *a, const char *b);
 
 // ============================================================================
+// PlainDate API
+// ============================================================================
+
+typedef struct {
+    int32_t year;
+    uint8_t month;
+    uint8_t day;
+    uint16_t day_of_week;
+    uint16_t day_of_year;
+    uint16_t week_of_year;
+    int32_t year_of_week;
+    uint16_t days_in_week;
+    uint16_t days_in_month;
+    uint16_t days_in_year;
+    uint16_t months_in_year;
+    int8_t in_leap_year;
+    int8_t is_valid;
+} PlainDateComponents;
+
+TemporalResult temporal_plain_date_from_string(const char *s);
+TemporalResult temporal_plain_date_from_components(int32_t year, uint8_t month, uint8_t day, const char *calendar_id);
+void temporal_plain_date_get_components(const char *s, PlainDateComponents *out);
+TemporalResult temporal_plain_date_get_month_code(const char *s);
+TemporalResult temporal_plain_date_get_calendar(const char *s);
+TemporalResult temporal_plain_date_add(const char *date_str, const char *duration_str);
+TemporalResult temporal_plain_date_subtract(const char *date_str, const char *duration_str);
+CompareResult temporal_plain_date_compare(const char *a, const char *b);
+TemporalResult temporal_plain_date_with(const char *date_str, int32_t year, int32_t month, int32_t day, const char *calendar_id);
+TemporalResult temporal_plain_date_until(const char *one_str, const char *two_str);
+TemporalResult temporal_plain_date_since(const char *one_str, const char *two_str);
+
+// ============================================================================
 // Calendar API
 // ============================================================================
 

@@ -10,5 +10,7 @@ export { Duration } from './types/Duration';
 export { Now } from './types/Now';
 export { PlainTime } from './types/PlainTime';
 export { Calendar } from './types/Calendar';
+export { PlainDate } from './types/PlainDate';
 export type { DurationLike } from './types/Duration';
 export type { PlainTimeLike } from './types/PlainTime';
+export type { PlainDateLike } from './types/PlainDate';

@@ -540,6 +540,296 @@ pub extern "C" fn temporal_plain_time_compare(a: *const c_char, b: *const c_char
 }
 
 // ============================================================================
+// PlainDate API
+// ============================================================================
+
+/// Represents a PlainDate's component values for FFI.
+#[repr(C)]
+pub struct PlainDateComponents {
+    pub year: i32,
+    pub month: u8,
+    pub day: u8,
+    pub day_of_week: u16,
+    pub day_of_year: u16,
+    pub week_of_year: u16,
+    pub year_of_week: i32,
+    pub days_in_week: u16,
+    pub days_in_month: u16,
+    pub days_in_year: u16,
+    pub months_in_year: u16,
+    pub in_leap_year: i8,
+    pub is_valid: i8,
+}
+
+impl Default for PlainDateComponents {
+    fn default() -> Self {
+        Self {
+            year: 0,
+            month: 0,
+            day: 0,
+            day_of_week: 0,
+            day_of_year: 0,
+            week_of_year: 0,
+            year_of_week: 0,
+            days_in_week: 0,
+            days_in_month: 0,
+            days_in_year: 0,
+            months_in_year: 0,
+            in_leap_year: 0,
+            is_valid: 0,
+        }
+    }
+}
+
+/// Parses an ISO 8601 string into a PlainDate and returns the normalized string.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_from_string(s: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(s, "plain date string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    match PlainDate::from_str(s_str) {
+        Ok(date) => TemporalResult::success(date.to_ixdtf_string(DisplayCalendar::Auto)),
+        Err(e) => TemporalResult::range_error(&format!("Invalid plain date '{}': {}", s_str, e)),
+    }
+}
+
+/// Creates a PlainDate from components.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_from_components(
+    year: i32,
+    month: u8,
+    day: u8,
+    calendar_id: *const c_char,
+) -> TemporalResult {
+    let calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        Calendar::default()
+    };
+
+    match PlainDate::new(year, month, day, calendar) {
+        Ok(date) => TemporalResult::success(date.to_ixdtf_string(DisplayCalendar::Auto)),
+        Err(e) => TemporalResult::range_error(&format!("Invalid plain date components: {}", e)),
+    }
+}
+
+/// Gets all integer component values from a PlainDate string.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_get_components(
+    s: *const c_char,
+    out: *mut PlainDateComponents,
+) {
+    if out.is_null() {
+        return;
+    }
+
+    unsafe { *out = PlainDateComponents::default(); }
+
+    if s.is_null() {
+        return;
+    }
+
+    let date = match parse_plain_date(s, "plain date") {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+
+    unsafe {
+        (*out).year = date.year();
+        (*out).month = date.month();
+        (*out).day = date.day();
+        (*out).day_of_week = date.day_of_week();
+        (*out).day_of_year = date.day_of_year();
+        (*out).week_of_year = date.week_of_year().unwrap_or(0) as u16;
+        (*out).year_of_week = date.year_of_week().unwrap_or(0);
+        (*out).days_in_week = date.days_in_week();
+        (*out).days_in_month = date.days_in_month();
+        (*out).days_in_year = date.days_in_year();
+        (*out).months_in_year = date.months_in_year();
+        (*out).in_leap_year = if date.in_leap_year() { 1 } else { 0 };
+        (*out).is_valid = 1;
+    }
+}
+
+/// Gets the month code of a PlainDate.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_get_month_code(s: *const c_char) -> TemporalResult {
+    let date = match parse_plain_date(s, "plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    TemporalResult::success(date.month_code().as_str().to_string())
+}
+
+/// Gets the calendar ID of a PlainDate.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_get_calendar(s: *const c_char) -> TemporalResult {
+    let date = match parse_plain_date(s, "plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    TemporalResult::success(date.calendar().identifier().to_string())
+}
+
+/// Adds a duration to a PlainDate.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_add(date_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let date = match parse_plain_date(date_str, "plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match date.add(&duration, None) {
+        Ok(result) => TemporalResult::success(result.to_ixdtf_string(DisplayCalendar::Auto)),
+        Err(e) => TemporalResult::range_error(&format!("Failed to add duration: {}", e)),
+    }
+}
+
+/// Subtracts a duration from a PlainDate.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_subtract(date_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let date = match parse_plain_date(date_str, "plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match date.subtract(&duration, None) {
+        Ok(result) => TemporalResult::success(result.to_ixdtf_string(DisplayCalendar::Auto)),
+        Err(e) => TemporalResult::range_error(&format!("Failed to subtract duration: {}", e)),
+    }
+}
+
+/// Compares two PlainDates.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_compare(a: *const c_char, b: *const c_char) -> CompareResult {
+    let date_a = match parse_plain_date(a, "first plain date") {
+        Ok(d) => d,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+    let date_b = match parse_plain_date(b, "second plain date") {
+        Ok(d) => d,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+
+    // Fallback to string comparison since direct comparison is not exposed/working
+    // Use DisplayCalendar::Never to compare pure ISO dates without calendar annotations
+    let s_a = date_a.to_ixdtf_string(DisplayCalendar::Never);
+    let s_b = date_b.to_ixdtf_string(DisplayCalendar::Never);
+
+    let val = match s_a.cmp(&s_b) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    };
+
+    CompareResult::success(val)
+}
+
+/// Returns a new PlainDate with updated fields.
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_with(
+    date_str: *const c_char,
+    year: i32,
+    month: i32,
+    day: i32,
+    calendar_id: *const c_char,
+) -> TemporalResult {
+    let date = match parse_plain_date(date_str, "plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    
+    let new_year = if year == i32::MIN { date.year() } else { year };
+    let new_month = if month == i32::MIN { date.month() } else { month as u8 };
+    let new_day = if day == i32::MIN { date.day() } else { day as u8 };
+    
+    let new_calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        date.calendar().clone()
+    };
+
+    match PlainDate::new(new_year, new_month, new_day, new_calendar) {
+         Ok(new_date) => TemporalResult::success(new_date.to_ixdtf_string(DisplayCalendar::Auto)),
+        Err(e) => TemporalResult::range_error(&format!("Invalid date components: {}", e)),
+    }
+}
+
+/// Computes the difference between two PlainDates (until).
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_until(
+    one_str: *const c_char,
+    two_str: *const c_char,
+) -> TemporalResult {
+    let one = match parse_plain_date(one_str, "first plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let two = match parse_plain_date(two_str, "second plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match one.until(&two, Default::default()) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+/// Computes the difference between two PlainDates (since).
+#[no_mangle]
+pub extern "C" fn temporal_plain_date_since(
+    one_str: *const c_char,
+    two_str: *const c_char,
+) -> TemporalResult {
+    let one = match parse_plain_date(one_str, "first plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+    let two = match parse_plain_date(two_str, "second plain date") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match one.since(&two, Default::default()) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+// Helper functions for PlainDate
+fn parse_plain_date(s: *const c_char, param_name: &str) -> Result<PlainDate, TemporalResult> {
+    let str_val = parse_c_str(s, param_name)?;
+    PlainDate::from_str(str_val)
+        .map_err(|e| TemporalResult::range_error(&format!("Invalid plain date '{}': {}", str_val, e)))
+}
+
+// ============================================================================
 // Calendar API
 // ============================================================================
 
@@ -1013,24 +1303,25 @@ mod android {
         get_now_plain_time_string,
     };
     use temporal_rs::{
-        options::ToStringRoundingOptions, Calendar, Duration, Instant, PlainTime,
+        options::{DisplayCalendar, ToStringRoundingOptions},
+        Calendar, Duration, Instant, PlainDate, PlainTime,
     };
     use std::str::FromStr;
     use std::ptr;
 
     use timezone_provider::tzif::CompiledTzdbProvider;
     
-    const RANGE_ERROR_CLASS: &str = "com/temporal/TemporalRangeError";
-    const TYPE_ERROR_CLASS: &str = "com/temporal/TemporalTypeError";
+    const RANGE_ERROR_CLASS: &str = "java/lang/RuntimeException";
+    const TYPE_ERROR_CLASS: &str = "java/lang/RuntimeException";
 
     /// Throws a RangeError exception
     fn throw_range_error(env: &mut JNIEnv, message: &str) {
-        let _ = env.throw_new(RANGE_ERROR_CLASS, message);
+        let _ = env.throw_new(RANGE_ERROR_CLASS, &format!("[RangeError] {}", message));
     }
 
     /// Throws a TypeError exception
     fn throw_type_error(env: &mut JNIEnv, message: &str) {
-        let _ = env.throw_new(TYPE_ERROR_CLASS, message);
+        let _ = env.throw_new(TYPE_ERROR_CLASS, &format!("[TypeError] {}", message));
     }
 
     /// Parses a JNI string, throwing TypeError if null or invalid
@@ -1620,6 +1911,361 @@ mod android {
         };
 
         time_a.cmp(&time_b) as jint
+    }
+
+    /// Parses a PlainDate string, throwing RangeError if invalid
+    fn parse_plain_date(env: &mut JNIEnv, s: &JString, name: &str) -> Option<PlainDate> {
+        let s_str = parse_jstring(env, s, name)?;
+        match PlainDate::from_str(&s_str) {
+            Ok(d) => Some(d),
+            Err(e) => {
+                throw_range_error(env, &format!("Invalid plain date '{}': {}", s_str, e));
+                None
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateFromString()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateFromString(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let date = match parse_plain_date(&mut env, &s, "plain date string") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        env.new_string(date.to_ixdtf_string(DisplayCalendar::Auto))
+            .map(|js| js.into_raw())
+            .unwrap_or_else(|_| {
+                throw_range_error(&mut env, "Failed to create result string");
+                ptr::null_mut()
+            })
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateFromComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateFromComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        year: jint,
+        month: jint,
+        day: jint,
+        calendar_id: JString,
+    ) -> jstring {
+        let calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            Calendar::default()
+        };
+
+        match PlainDate::new(year, month as u8, day as u8, calendar) {
+            Ok(date) => env
+                .new_string(date.to_ixdtf_string(DisplayCalendar::Auto))
+                .map(|js| js.into_raw())
+                .unwrap_or_else(|_| {
+                    throw_range_error(&mut env, "Failed to create result string");
+                    ptr::null_mut()
+                }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date components: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateGetAllComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateGetAllComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jlongArray {
+        let date = match parse_plain_date(&mut env, &s, "plain date string") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        let components: [i64; 12] = [
+            date.year() as i64,
+            date.month() as i64,
+            date.day() as i64,
+            date.day_of_week() as i64,
+            date.day_of_year() as i64,
+            date.week_of_year().unwrap_or(0) as i64,
+            date.year_of_week().unwrap_or(0) as i64,
+            date.days_in_week() as i64,
+            date.days_in_month() as i64,
+            date.days_in_year() as i64,
+            date.months_in_year() as i64,
+            if date.in_leap_year() { 1 } else { 0 },
+        ];
+
+        match env.new_long_array(12) {
+            Ok(arr) => {
+                if env.set_long_array_region(&arr, 0, &components).is_err() {
+                    throw_range_error(&mut env, "Failed to set array elements");
+                    return ptr::null_mut();
+                }
+                arr.into_raw()
+            }
+            Err(_) => {
+                throw_range_error(&mut env, "Failed to create result array");
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateGetMonthCode()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateGetMonthCode(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let date = match parse_plain_date(&mut env, &s, "plain date string") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        env.new_string(date.month_code().as_str())
+            .map(|js| js.into_raw())
+            .unwrap_or_else(|_| {
+                throw_range_error(&mut env, "Failed to create result string");
+                ptr::null_mut()
+            })
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateGetCalendar()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateGetCalendar(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let date = match parse_plain_date(&mut env, &s, "plain date string") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        env.new_string(date.calendar().identifier())
+            .map(|js| js.into_raw())
+            .unwrap_or_else(|_| {
+                throw_range_error(&mut env, "Failed to create result string");
+                ptr::null_mut()
+            })
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateAdd()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateAdd(
+        mut env: JNIEnv,
+        _class: JClass,
+        date_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let date = match parse_plain_date(&mut env, &date_str, "plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        let duration = match parse_duration(&mut env, &duration_str, "duration") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        match date.add(&duration, None) {
+            Ok(result) => env
+                .new_string(result.to_ixdtf_string(DisplayCalendar::Auto))
+                .map(|js| js.into_raw())
+                .unwrap_or_else(|_| {
+                    throw_range_error(&mut env, "Failed to create result string");
+                    ptr::null_mut()
+                }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to add duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateSubtract()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateSubtract(
+        mut env: JNIEnv,
+        _class: JClass,
+        date_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let date = match parse_plain_date(&mut env, &date_str, "plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        let duration = match parse_duration(&mut env, &duration_str, "duration") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        match date.subtract(&duration, None) {
+            Ok(result) => env
+                .new_string(result.to_ixdtf_string(DisplayCalendar::Auto))
+                .map(|js| js.into_raw())
+                .unwrap_or_else(|_| {
+                    throw_range_error(&mut env, "Failed to create result string");
+                    ptr::null_mut()
+                }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to subtract duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateCompare()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateCompare(
+        mut env: JNIEnv,
+        _class: JClass,
+        a: JString,
+        b: JString,
+    ) -> jint {
+        let date_a = match parse_plain_date(&mut env, &a, "first plain date") {
+            Some(d) => d,
+            None => return 0,
+        };
+        let date_b = match parse_plain_date(&mut env, &b, "second plain date") {
+            Some(d) => d,
+            None => return 0,
+        };
+
+        // Fallback to string comparison for now
+        let s_a = date_a.to_ixdtf_string(DisplayCalendar::Never);
+        let s_b = date_b.to_ixdtf_string(DisplayCalendar::Never);
+
+        s_a.cmp(&s_b) as jint
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateWith()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateWith(
+        mut env: JNIEnv,
+        _class: JClass,
+        date_str: JString,
+        year: jint,
+        month: jint,
+        day: jint,
+        calendar_id: JString,
+    ) -> jstring {
+        let date = match parse_plain_date(&mut env, &date_str, "plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        let new_year = if year == i32::MIN { date.year() } else { year };
+        let new_month = if month == i32::MIN { date.month() } else { month as u8 };
+        let new_day = if day == i32::MIN { date.day() } else { day as u8 };
+
+        let new_calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            date.calendar().clone()
+        };
+
+        match PlainDate::new(new_year, new_month, new_day, new_calendar) {
+            Ok(new_date) => env
+                .new_string(new_date.to_ixdtf_string(DisplayCalendar::Auto))
+                .map(|js| js.into_raw())
+                .unwrap_or_else(|_| {
+                    throw_range_error(&mut env, "Failed to create result string");
+                    ptr::null_mut()
+                }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid date components: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateUntil()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateUntil(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+    ) -> jstring {
+        let d1 = match parse_plain_date(&mut env, &one, "first plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        let d2 = match parse_plain_date(&mut env, &two, "second plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        match d1.until(&d2, Default::default()) {
+            Ok(d) => env
+                .new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or_else(|_| {
+                    throw_range_error(&mut env, "Failed to create result string");
+                    ptr::null_mut()
+                }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute until: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainDateSince()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainDateSince(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+    ) -> jstring {
+        let d1 = match parse_plain_date(&mut env, &one, "first plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+        let d2 = match parse_plain_date(&mut env, &two, "second plain date") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        match d1.since(&d2, Default::default()) {
+            Ok(d) => env
+                .new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or_else(|_| {
+                    throw_range_error(&mut env, "Failed to create result string");
+                    ptr::null_mut()
+                }),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute since: {}", e));
+                ptr::null_mut()
+            }
+        }
     }
 
     /// JNI function for `com.temporal.TemporalNative.calendarFrom()`

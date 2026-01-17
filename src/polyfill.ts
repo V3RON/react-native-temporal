@@ -2,6 +2,7 @@ import { Duration } from './types/Duration';
 import { Instant } from './types/Instant';
 import { Now } from './types/Now';
 import { PlainTime } from './types/PlainTime';
+import { PlainDate } from './types/PlainDate';
 import { Calendar } from './types/Calendar';
 
 declare global {
@@ -10,6 +11,7 @@ declare global {
     Instant: typeof Instant;
     Now: typeof Now;
     PlainTime: typeof PlainTime;
+    PlainDate: typeof PlainDate;
     Calendar: typeof Calendar;
   };
 }
@@ -19,5 +21,6 @@ globalThis.Temporal = globalThis.Temporal || {
   Instant,
   Now,
   PlainTime,
+  PlainDate,
   Calendar,
 };
