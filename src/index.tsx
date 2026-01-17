@@ -8,4 +8,6 @@ export function multiply(a: number, b: number): number {
 export { Instant } from './types/Instant';
 export { Duration } from './types/Duration';
 export { Now } from './types/Now';
+export { PlainTime } from './types/PlainTime';
 export type { DurationLike } from './types/Duration';
+export type { PlainTimeLike } from './types/PlainTime';

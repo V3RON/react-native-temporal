@@ -54,6 +54,35 @@ object TemporalNative {
     external fun nowPlainTimeISO(tzId: String): String
 
     /**
+     * PlainTime API
+     */
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeFromComponents(
+        hour: Int,
+        minute: Int,
+        second: Int,
+        millisecond: Int,
+        microsecond: Int,
+        nanosecond: Int
+    ): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeGetAllComponents(s: String): LongArray
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeAdd(time: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeSubtract(time: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeCompare(one: String, two: String): Int
+
+    /**
      * Duration API
      */
 

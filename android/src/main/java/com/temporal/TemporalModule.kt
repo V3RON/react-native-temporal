@@ -86,6 +86,51 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.nowPlainTimeISO(tzId)
   }
 
+  // PlainTime methods
+
+  override fun plainTimeFromString(s: String): String {
+    return TemporalNative.plainTimeFromString(s)
+  }
+
+  override fun plainTimeFromComponents(
+    hour: Double,
+    minute: Double,
+    second: Double,
+    millisecond: Double,
+    microsecond: Double,
+    nanosecond: Double
+  ): String {
+    return TemporalNative.plainTimeFromComponents(
+      hour.toInt(),
+      minute.toInt(),
+      second.toInt(),
+      millisecond.toInt(),
+      microsecond.toInt(),
+      nanosecond.toInt()
+    )
+  }
+
+  override fun plainTimeGetAllComponents(s: String): WritableArray {
+    val components = TemporalNative.plainTimeGetAllComponents(s)
+    val result = WritableNativeArray()
+    for (value in components) {
+      result.pushDouble(value.toDouble())
+    }
+    return result
+  }
+
+  override fun plainTimeAdd(time: String, duration: String): String {
+    return TemporalNative.plainTimeAdd(time, duration)
+  }
+
+  override fun plainTimeSubtract(time: String, duration: String): String {
+    return TemporalNative.plainTimeSubtract(time, duration)
+  }
+
+  override fun plainTimeCompare(one: String, two: String): Double {
+    return TemporalNative.plainTimeCompare(one, two).toDouble()
+  }
+
   // Duration methods
 
   override fun durationFromString(input: String): String {

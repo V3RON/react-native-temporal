@@ -212,6 +212,108 @@ static NSString *extractResultValue(TemporalResult result) {
     return extractResultValue(result);
 }
 
+// PlainTime methods
+
+- (NSString *)plainTimeFromString:(NSString *)s {
+    if (s == nil) {
+        THROW_TYPE_ERROR(@"PlainTime string cannot be null");
+    }
+    const char *sCStr = [s UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid plain time string encoding");
+    }
+    TemporalResult result = temporal_plain_time_from_string(sCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainTimeFromComponents:(double)hour
+                               minute:(double)minute
+                               second:(double)second
+                          millisecond:(double)millisecond
+                          microsecond:(double)microsecond
+                           nanosecond:(double)nanosecond {
+    TemporalResult result = temporal_plain_time_from_components(
+        (uint8_t)hour,
+        (uint8_t)minute,
+        (uint8_t)second,
+        (uint16_t)millisecond,
+        (uint16_t)microsecond,
+        (uint16_t)nanosecond
+    );
+    return extractResultValue(result);
+}
+
+- (NSDictionary *)plainTimeGetAllComponents:(NSString *)plainTimeStr {
+    if (plainTimeStr == nil) {
+        THROW_TYPE_ERROR(@"PlainTime string cannot be null");
+    }
+    const char *sCStr = [plainTimeStr UTF8String];
+    if (sCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid plain time string encoding");
+    }
+
+    PlainTimeComponents components;
+    temporal_plain_time_get_components(sCStr, &components);
+
+    if (components.is_valid == 0) {
+        THROW_RANGE_ERROR(@"Invalid plain time");
+    }
+
+    return @{
+        @"hour": @(components.hour),
+        @"minute": @(components.minute),
+        @"second": @(components.second),
+        @"millisecond": @(components.millisecond),
+        @"microsecond": @(components.microsecond),
+        @"nanosecond": @(components.nanosecond)
+    };
+}
+
+- (NSString *)plainTimeAdd:(NSString *)plainTime duration:(NSString *)duration {
+    if (plainTime == nil || duration == nil) {
+        THROW_TYPE_ERROR(@"Arguments cannot be null");
+    }
+    const char *tCStr = [plainTime UTF8String];
+    const char *dCStr = [duration UTF8String];
+    if (tCStr == NULL || dCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid string encoding");
+    }
+    TemporalResult result = temporal_plain_time_add(tCStr, dCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainTimeSubtract:(NSString *)plainTime duration:(NSString *)duration {
+    if (plainTime == nil || duration == nil) {
+        THROW_TYPE_ERROR(@"Arguments cannot be null");
+    }
+    const char *tCStr = [plainTime UTF8String];
+    const char *dCStr = [duration UTF8String];
+    if (tCStr == NULL || dCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid string encoding");
+    }
+    TemporalResult result = temporal_plain_time_subtract(tCStr, dCStr);
+    return extractResultValue(result);
+}
+
+- (double)plainTimeCompare:(NSString *)one two:(NSString *)two {
+    if (one == nil || two == nil) {
+        THROW_TYPE_ERROR(@"Arguments cannot be null");
+    }
+    const char *aCStr = [one UTF8String];
+    const char *bCStr = [two UTF8String];
+    if (aCStr == NULL || bCStr == NULL) {
+        THROW_TYPE_ERROR(@"Invalid string encoding");
+    }
+    CompareResult result = temporal_plain_time_compare(aCStr, bCStr);
+    if (result.error_type != TEMPORAL_ERROR_NONE) {
+        throwCompareError(&result);
+        return 0;
+    }
+    double val = (double)result.value;
+    temporal_free_compare_result(&result);
+    return val;
+}
+
 // Duration methods
 
 - (NSString *)durationFromString:(NSString *)input {

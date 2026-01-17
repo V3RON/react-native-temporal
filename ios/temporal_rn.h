@@ -120,6 +120,57 @@ TemporalResult temporal_now_plain_date_iso(const char *tz_id);
  */
 TemporalResult temporal_now_plain_time_iso(const char *tz_id);
 
+// ============================================================================
+// PlainTime API
+// ============================================================================
+
+typedef struct {
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    uint16_t millisecond;
+    uint16_t microsecond;
+    uint16_t nanosecond;
+    int8_t is_valid;
+} PlainTimeComponents;
+
+/**
+ * Parses an ISO 8601 string into a PlainTime and returns the normalized string.
+ */
+TemporalResult temporal_plain_time_from_string(const char *s);
+
+/**
+ * Creates a PlainTime from individual components.
+ */
+TemporalResult temporal_plain_time_from_components(
+    uint8_t hour,
+    uint8_t minute,
+    uint8_t second,
+    uint16_t millisecond,
+    uint16_t microsecond,
+    uint16_t nanosecond
+);
+
+/**
+ * Gets all component values from a PlainTime string.
+ */
+void temporal_plain_time_get_components(const char *s, PlainTimeComponents *out);
+
+/**
+ * Adds a duration to a PlainTime.
+ */
+TemporalResult temporal_plain_time_add(const char *time_str, const char *duration_str);
+
+/**
+ * Subtracts a duration from a PlainTime.
+ */
+TemporalResult temporal_plain_time_subtract(const char *time_str, const char *duration_str);
+
+/**
+ * Compares two PlainTime objects.
+ */
+CompareResult temporal_plain_time_compare(const char *a, const char *b);
+
 /**
  * Frees a string allocated by temporal functions.
  */

@@ -359,7 +359,167 @@ fn get_now_plain_time_string(tz_id: &str) -> Result<String, Box<dyn std::error::
 }
 
 // ============================================================================
+// PlainTime API
+// ============================================================================
+
+/// Represents a PlainTime's component values for FFI.
+#[repr(C)]
+pub struct PlainTimeComponents {
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+    pub millisecond: u16,
+    pub microsecond: u16,
+    pub nanosecond: u16,
+    /// 1 if the components are valid, 0 if parsing failed
+    pub is_valid: i8,
+}
+
+impl Default for PlainTimeComponents {
+    fn default() -> Self {
+        Self {
+            hour: 0,
+            minute: 0,
+            second: 0,
+            millisecond: 0,
+            microsecond: 0,
+            nanosecond: 0,
+            is_valid: 0,
+        }
+    }
+}
+
+/// Parses an ISO 8601 string into a PlainTime and returns the normalized string.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_from_string(s: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(s, "plain time string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    match PlainTime::from_str(s_str) {
+        Ok(time) => match time.to_ixdtf_string(ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid plain time '{}': {}", s_str, e)),
+    }
+}
+
+/// Creates a PlainTime from individual components.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_from_components(
+    hour: u8,
+    minute: u8,
+    second: u8,
+    millisecond: u16,
+    microsecond: u16,
+    nanosecond: u16,
+) -> TemporalResult {
+    match PlainTime::new(hour, minute, second, millisecond, microsecond, nanosecond) {
+        Ok(time) => match time.to_ixdtf_string(ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid plain time components: {}", e)),
+    }
+}
+
+/// Gets all component values from a PlainTime string.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_get_components(
+    s: *const c_char,
+    out: *mut PlainTimeComponents,
+) {
+    if out.is_null() {
+        return;
+    }
+
+    unsafe { *out = PlainTimeComponents::default(); }
+
+    if s.is_null() {
+        return;
+    }
+
+    let time = match parse_plain_time(s, "plain time") {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+
+    unsafe {
+        (*out).hour = time.hour();
+        (*out).minute = time.minute();
+        (*out).second = time.second();
+        (*out).millisecond = time.millisecond();
+        (*out).microsecond = time.microsecond();
+        (*out).nanosecond = time.nanosecond();
+        (*out).is_valid = 1;
+    }
+}
+
+/// Adds a duration to a PlainTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_add(time_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let time = match parse_plain_time(time_str, "plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match time.add(&duration) {
+        Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to add duration: {}", e)),
+    }
+}
+
+/// Subtracts a duration from a PlainTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_subtract(time_str: *const c_char, duration_str: *const c_char) -> TemporalResult {
+    let time = match parse_plain_time(time_str, "plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match time.subtract(&duration) {
+        Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to subtract duration: {}", e)),
+    }
+}
+
+/// Compares two PlainTime objects.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_compare(a: *const c_char, b: *const c_char) -> CompareResult {
+    let time_a = match parse_plain_time(a, "first plain time") {
+        Ok(t) => t,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+    let time_b = match parse_plain_time(b, "second plain time") {
+        Ok(t) => t,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+
+    CompareResult::success(time_a.cmp(&time_b) as i32)
+}
+
+// ============================================================================
 // Duration API
+
 // ============================================================================
 /// Note: microseconds and nanoseconds are clamped to i64 range for FFI safety.
 #[repr(C)]
@@ -729,6 +889,12 @@ fn parse_instant(s: *const c_char, param_name: &str) -> Result<Instant, Temporal
         .map_err(|e| TemporalResult::range_error(&format!("Invalid instant '{}': {}", str_val, e)))
 }
 
+fn parse_plain_time(s: *const c_char, param_name: &str) -> Result<PlainTime, TemporalResult> {
+    let str_val = parse_c_str(s, param_name)?;
+    PlainTime::from_str(str_val)
+        .map_err(|e| TemporalResult::range_error(&format!("Invalid plain time '{}': {}", str_val, e)))
+}
+
 fn duration_binary_op<F>(
     a: *const c_char,
     b: *const c_char,
@@ -786,7 +952,9 @@ mod android {
         get_instant_now_string, get_now_plain_date_string, get_now_plain_date_time_string,
         get_now_plain_time_string,
     };
-    use temporal_rs::{Duration, Instant};
+    use temporal_rs::{
+        options::ToStringRoundingOptions, Duration, Instant, PlainTime,
+    };
     use std::str::FromStr;
     use std::ptr;
 
@@ -1165,6 +1333,207 @@ mod android {
                 ptr::null_mut()
             }
         }
+    }
+
+    /// Parses a PlainTime string, throwing RangeError if invalid
+    fn parse_plain_time(env: &mut JNIEnv, s: &JString, name: &str) -> Option<PlainTime> {
+        let s_str = parse_jstring(env, s, name)?;
+        match PlainTime::from_str(&s_str) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                throw_range_error(env, &format!("Invalid plain time '{}': {}", s_str, e));
+                None
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeFromString()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeFromString(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let time = match parse_plain_time(&mut env, &s, "plain time string") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+        match time.to_ixdtf_string(ToStringRoundingOptions::default()) {
+            Ok(s) => env.new_string(s)
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to format plain time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeFromComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeFromComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        hour: jint,
+        minute: jint,
+        second: jint,
+        millisecond: jint,
+        microsecond: jint,
+        nanosecond: jint,
+    ) -> jstring {
+        match PlainTime::new(
+            hour as u8,
+            minute as u8,
+            second as u8,
+            millisecond as u16,
+            microsecond as u16,
+            nanosecond as u16
+        ) {
+            Ok(time) => match time.to_ixdtf_string(ToStringRoundingOptions::default()) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or_else(|_| {
+                        throw_range_error(&mut env, "Failed to create result string");
+                        ptr::null_mut()
+                    }),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain time components: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeGetAllComponents()`
+    /// Returns: [hour, minute, second, millisecond, microsecond, nanosecond]
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeGetAllComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jlongArray {
+        let time = match parse_plain_time(&mut env, &s, "plain time string") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+
+        let components: [i64; 6] = [
+            time.hour() as i64,
+            time.minute() as i64,
+            time.second() as i64,
+            time.millisecond() as i64,
+            time.microsecond() as i64,
+            time.nanosecond() as i64,
+        ];
+
+        match env.new_long_array(6) {
+            Ok(arr) => {
+                if env.set_long_array_region(&arr, 0, &components).is_err() {
+                    throw_range_error(&mut env, "Failed to set array elements");
+                    return ptr::null_mut();
+                }
+                arr.into_raw()
+            }
+            Err(_) => {
+                throw_range_error(&mut env, "Failed to create result array");
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeAdd()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeAdd(
+        mut env: JNIEnv,
+        _class: JClass,
+        time_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let time = match parse_plain_time(&mut env, &time_str, "plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+        let duration = match parse_duration(&mut env, &duration_str, "duration") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        match time.add(&duration) {
+            Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default()) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to add duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeSubtract()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeSubtract(
+        mut env: JNIEnv,
+        _class: JClass,
+        time_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let time = match parse_plain_time(&mut env, &time_str, "plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+        let duration = match parse_duration(&mut env, &duration_str, "duration") {
+            Some(d) => d,
+            None => return ptr::null_mut(),
+        };
+
+        match time.subtract(&duration) {
+            Ok(result) => match result.to_ixdtf_string(ToStringRoundingOptions::default()) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to subtract duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeCompare()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeCompare(
+        mut env: JNIEnv,
+        _class: JClass,
+        a: JString,
+        b: JString,
+    ) -> jint {
+        let time_a = match parse_plain_time(&mut env, &a, "first plain time") {
+            Some(t) => t,
+            None => return 0,
+        };
+        let time_b = match parse_plain_time(&mut env, &b, "second plain time") {
+            Some(t) => t,
+            None => return 0,
+        };
+
+        time_a.cmp(&time_b) as jint
     }
 
     /// JNI function for `com.temporal.TemporalNative.durationFromString()`

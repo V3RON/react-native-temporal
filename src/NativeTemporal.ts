@@ -18,6 +18,21 @@ export interface Spec extends TurboModule {
   nowPlainDateISO(tz?: string): string;
   nowPlainTimeISO(tz?: string): string;
 
+  // PlainTime methods
+  plainTimeFromString(s: string): string;
+  plainTimeFromComponents(
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    microsecond: number,
+    nanosecond: number
+  ): string;
+  plainTimeGetAllComponents(s: string): number[];
+  plainTimeAdd(time: string, duration: string): string;
+  plainTimeSubtract(time: string, duration: string): string;
+  plainTimeCompare(one: string, two: string): number;
+
   // Duration methods - minimal bridge, all logic in native
 
   /**
