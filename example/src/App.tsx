@@ -13,6 +13,8 @@ import {
   Instant,
   Duration,
   PlainDateTime,
+  PlainYearMonth,
+  PlainMonthDay,
 } from 'react-native-temporal';
 
 const multiplyResult = multiply(3, 7);
@@ -59,6 +61,15 @@ export default function App() {
   const [dateTimeComponents, setDateTimeComponents] = useState<string>('');
   const [dateTimeAddResult, setDateTimeAddResult] = useState<string>('');
 
+  // PlainYearMonth / PlainMonthDay test state
+  const [ymInput, setYmInput] = useState<string>('2024-03');
+  const [parsedYm, setParsedYm] = useState<string>('');
+  const [ymComponents, setYmComponents] = useState<string>('');
+
+  const [mdInput, setMdInput] = useState<string>('03-14');
+  const [parsedMd, setParsedMd] = useState<string>('');
+  const [mdComponents, setMdComponents] = useState<string>('');
+
   const updateInstant = () => {
     const instant = Instant.now();
     setCurrentInstant(instant.toString());
@@ -79,6 +90,32 @@ export default function App() {
     } catch (e) {
       setError(`DateTime error: ${e}`);
       setParsedDateTime('');
+    }
+  };
+
+  const testYearMonthParsing = () => {
+    try {
+      setError('');
+      const ym = PlainYearMonth.from(ymInput);
+      setParsedYm(ym.toString());
+      setYmComponents(
+        `Y:${ym.year} M:${ym.month} Days:${ym.daysInMonth} Leap:${ym.inLeapYear}`
+      );
+    } catch (e) {
+      setError(`YearMonth error: ${e}`);
+      setParsedYm('');
+    }
+  };
+
+  const testMonthDayParsing = () => {
+    try {
+      setError('');
+      const md = PlainMonthDay.from(mdInput);
+      setParsedMd(md.toString());
+      setMdComponents(`M:${md.monthCode} D:${md.day}`);
+    } catch (e) {
+      setError(`MonthDay error: ${e}`);
+      setParsedMd('');
     }
   };
 
@@ -306,6 +343,40 @@ export default function App() {
             <Text style={styles.value}>{dateTimeComponents}</Text>
             <Text style={styles.label}>Add P1D:</Text>
             <Text style={styles.value}>{dateTimeAddResult}</Text>
+          </>
+        ) : null}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>PlainYearMonth & PlainMonthDay</Text>
+
+        <Text style={styles.inputLabel}>YearMonth:</Text>
+        <TextInput
+          style={styles.input}
+          value={ymInput}
+          onChangeText={setYmInput}
+          placeholder="2024-03"
+        />
+        <Button title="Test YearMonth" onPress={testYearMonthParsing} />
+        {parsedYm ? (
+          <>
+            <Text style={styles.value}>{parsedYm}</Text>
+            <Text style={styles.value}>{ymComponents}</Text>
+          </>
+        ) : null}
+
+        <Text style={styles.inputLabel}>MonthDay:</Text>
+        <TextInput
+          style={styles.input}
+          value={mdInput}
+          onChangeText={setMdInput}
+          placeholder="03-14"
+        />
+        <Button title="Test MonthDay" onPress={testMonthDayParsing} />
+        {parsedMd ? (
+          <>
+            <Text style={styles.value}>{parsedMd}</Text>
+            <Text style={styles.value}>{mdComponents}</Text>
           </>
         ) : null}
       </View>

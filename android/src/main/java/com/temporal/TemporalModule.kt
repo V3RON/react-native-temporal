@@ -266,6 +266,92 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.plainDateTimeSince(one, two)
   }
 
+  // PlainYearMonth methods
+
+  override fun plainYearMonthFromString(s: String): String {
+    return TemporalNative.plainYearMonthFromString(s)
+  }
+
+  override fun plainYearMonthFromComponents(year: Double, month: Double, calendarId: String?, referenceDay: Double): String {
+    return TemporalNative.plainYearMonthFromComponents(year.toInt(), month.toInt(), calendarId, referenceDay.toInt())
+  }
+
+  override fun plainYearMonthGetAllComponents(s: String): WritableArray {
+    val components = TemporalNative.plainYearMonthGetAllComponents(s)
+    val result = WritableNativeArray()
+    for (value in components) {
+      result.pushDouble(value.toDouble())
+    }
+    return result
+  }
+
+  override fun plainYearMonthGetMonthCode(s: String): String {
+    return TemporalNative.plainYearMonthGetMonthCode(s)
+  }
+
+  override fun plainYearMonthGetCalendar(s: String): String {
+    return TemporalNative.plainYearMonthGetCalendar(s)
+  }
+
+  override fun plainYearMonthAdd(ym: String, duration: String): String {
+    return TemporalNative.plainYearMonthAdd(ym, duration)
+  }
+
+  override fun plainYearMonthSubtract(ym: String, duration: String): String {
+    return TemporalNative.plainYearMonthSubtract(ym, duration)
+  }
+
+  override fun plainYearMonthCompare(a: String, b: String): Double {
+    return TemporalNative.plainYearMonthCompare(a, b).toDouble()
+  }
+
+  override fun plainYearMonthWith(ym: String, year: Double, month: Double, calendarId: String?): String {
+    return TemporalNative.plainYearMonthWith(ym, year.toInt(), month.toInt(), calendarId)
+  }
+
+  override fun plainYearMonthUntil(one: String, two: String): String {
+    return TemporalNative.plainYearMonthUntil(one, two)
+  }
+
+  override fun plainYearMonthSince(one: String, two: String): String {
+    return TemporalNative.plainYearMonthSince(one, two)
+  }
+
+  override fun plainYearMonthToPlainDate(ym: String, day: Double): String {
+    return TemporalNative.plainYearMonthToPlainDate(ym, day.toInt())
+  }
+
+  // PlainMonthDay methods
+
+  override fun plainMonthDayFromString(s: String): String {
+    return TemporalNative.plainMonthDayFromString(s)
+  }
+
+  override fun plainMonthDayFromComponents(month: Double, day: Double, calendarId: String?, referenceYear: Double): String {
+    return TemporalNative.plainMonthDayFromComponents(month.toInt(), day.toInt(), calendarId, referenceYear.toInt())
+  }
+
+  override fun plainMonthDayGetAllComponents(s: String): WritableArray {
+    val components = TemporalNative.plainMonthDayGetAllComponents(s)
+    val result = WritableNativeArray()
+    for (value in components) {
+      result.pushDouble(value.toDouble())
+    }
+    return result
+  }
+
+  override fun plainMonthDayGetMonthCode(s: String): String {
+    return TemporalNative.plainMonthDayGetMonthCode(s)
+  }
+
+  override fun plainMonthDayGetCalendar(s: String): String {
+    return TemporalNative.plainMonthDayGetCalendar(s)
+  }
+
+  override fun plainMonthDayToPlainDate(md: String, year: Double): String {
+    return TemporalNative.plainMonthDayToPlainDate(md, year.toInt())
+  }
+
   // Calendar methods
 
   override fun calendarFrom(id: String): String {

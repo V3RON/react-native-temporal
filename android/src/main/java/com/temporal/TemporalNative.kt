@@ -166,6 +166,66 @@ object TemporalNative {
     external fun plainDateTimeSince(one: String, two: String): String
 
     /**
+     * PlainYearMonth API
+     */
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthFromComponents(year: Int, month: Int, calendarId: String?, referenceDay: Int): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthGetAllComponents(s: String): LongArray
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthGetMonthCode(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthGetCalendar(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthAdd(ym: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthSubtract(ym: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthCompare(a: String, b: String): Int
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthWith(ym: String, year: Int, month: Int, calendarId: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthUntil(one: String, two: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthSince(one: String, two: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainYearMonthToPlainDate(ym: String, day: Int): String
+
+    /**
+     * PlainMonthDay API
+     */
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainMonthDayFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainMonthDayFromComponents(month: Int, day: Int, calendarId: String?, referenceYear: Int): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainMonthDayGetAllComponents(s: String): LongArray
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainMonthDayGetMonthCode(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainMonthDayGetCalendar(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainMonthDayToPlainDate(md: String, year: Int): String
+
+    /**
      * Calendar API
      */
 

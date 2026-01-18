@@ -549,6 +549,146 @@ static NSString *extractResultValue(TemporalResult result) {
     return extractResultValue(result);
 }
 
+// PlainYearMonth methods
+
+- (NSString *)plainYearMonthFromString:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_plain_year_month_from_string([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthFromComponents:(double)year month:(double)month calendarId:(NSString *)calendarId referenceDay:(double)referenceDay {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_year_month_from_components(
+        (int32_t)year, (uint8_t)month, cIdCStr, (uint8_t)referenceDay
+    );
+    return extractResultValue(result);
+}
+
+- (NSArray<NSNumber *> *)plainYearMonthGetAllComponents:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    PlainYearMonthComponents c;
+    temporal_plain_year_month_get_components([s UTF8String], &c);
+    
+    if (c.is_valid == 0) {
+        THROW_RANGE_ERROR(@"Invalid plain year month");
+    }
+    
+    return @[
+        @(c.year), @(c.month), @(c.day),
+        @(c.days_in_month), @(c.days_in_year), @(c.months_in_year),
+        @(c.in_leap_year), @(c.era_year)
+    ];
+}
+
+- (NSString *)plainYearMonthGetMonthCode:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_year_month_get_month_code([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthGetCalendar:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_year_month_get_calendar([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthAdd:(NSString *)ym duration:(NSString *)duration {
+    if (!ym || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_year_month_add([ym UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthSubtract:(NSString *)ym duration:(NSString *)duration {
+    if (!ym || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_year_month_subtract([ym UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (double)plainYearMonthCompare:(NSString *)a b:(NSString *)b {
+    if (!a || !b) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    CompareResult result = temporal_plain_year_month_compare([a UTF8String], [b UTF8String]);
+    if (result.error_type != TEMPORAL_ERROR_NONE) {
+        throwCompareError(&result);
+        return 0;
+    }
+    double val = (double)result.value;
+    temporal_free_compare_result(&result);
+    return val;
+}
+
+- (NSString *)plainYearMonthWith:(NSString *)ym year:(double)year month:(double)month calendarId:(NSString *)calendarId {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_year_month_with(
+        [ym UTF8String], (int32_t)year, (int32_t)month, cIdCStr
+    );
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthUntil:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_year_month_until([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthSince:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_plain_year_month_since([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainYearMonthToPlainDate:(NSString *)ym day:(double)day {
+    if (ym == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_plain_year_month_to_plain_date([ym UTF8String], (int32_t)day);
+    return extractResultValue(result);
+}
+
+// PlainMonthDay methods
+
+- (NSString *)plainMonthDayFromString:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_plain_month_day_from_string([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainMonthDayFromComponents:(double)month day:(double)day calendarId:(NSString *)calendarId referenceYear:(double)referenceYear {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_plain_month_day_from_components(
+        (uint8_t)month, (uint8_t)day, cIdCStr, (int32_t)referenceYear
+    );
+    return extractResultValue(result);
+}
+
+- (NSArray<NSNumber *> *)plainMonthDayGetAllComponents:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    PlainMonthDayComponents c;
+    temporal_plain_month_day_get_components([s UTF8String], &c);
+    
+    if (c.is_valid == 0) {
+        THROW_RANGE_ERROR(@"Invalid plain month day");
+    }
+    
+    return @[@(c.month), @(c.day)];
+}
+
+- (NSString *)plainMonthDayGetMonthCode:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_month_day_get_month_code([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainMonthDayGetCalendar:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_plain_month_day_get_calendar([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)plainMonthDayToPlainDate:(NSString *)md year:(double)year {
+    if (md == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_plain_month_day_to_plain_date([md UTF8String], (int32_t)year);
+    return extractResultValue(result);
+}
+
 // Calendar methods
 
 - (NSString *)calendarFrom:(NSString *)id {

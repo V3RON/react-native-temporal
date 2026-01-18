@@ -253,6 +253,58 @@ TemporalResult temporal_plain_date_time_until(const char *one_str, const char *t
 TemporalResult temporal_plain_date_time_since(const char *one_str, const char *two_str);
 
 // ============================================================================
+// PlainYearMonth API
+// ============================================================================
+
+typedef struct {
+    int32_t year;
+    uint8_t month;
+    uint8_t day;
+    uint16_t days_in_month;
+    uint16_t days_in_year;
+    uint16_t months_in_year;
+    int8_t in_leap_year;
+    int32_t era_year;
+    int8_t is_valid;
+} PlainYearMonthComponents;
+
+TemporalResult temporal_plain_year_month_from_string(const char *s);
+TemporalResult temporal_plain_year_month_from_components(
+    int32_t year, uint8_t month, const char *calendar_id, uint8_t reference_day
+);
+void temporal_plain_year_month_get_components(const char *s, PlainYearMonthComponents *out);
+TemporalResult temporal_plain_year_month_get_month_code(const char *s);
+TemporalResult temporal_plain_year_month_get_calendar(const char *s);
+TemporalResult temporal_plain_year_month_add(const char *ym_str, const char *duration_str);
+TemporalResult temporal_plain_year_month_subtract(const char *ym_str, const char *duration_str);
+CompareResult temporal_plain_year_month_compare(const char *a, const char *b);
+TemporalResult temporal_plain_year_month_with(
+    const char *ym_str, int32_t year, int32_t month, const char *calendar_id
+);
+TemporalResult temporal_plain_year_month_until(const char *one_str, const char *two_str);
+TemporalResult temporal_plain_year_month_since(const char *one_str, const char *two_str);
+TemporalResult temporal_plain_year_month_to_plain_date(const char *ym_str, int32_t day);
+
+// ============================================================================
+// PlainMonthDay API
+// ============================================================================
+
+typedef struct {
+    uint8_t month;
+    uint8_t day;
+    int8_t is_valid;
+} PlainMonthDayComponents;
+
+TemporalResult temporal_plain_month_day_from_string(const char *s);
+TemporalResult temporal_plain_month_day_from_components(
+    uint8_t month, uint8_t day, const char *calendar_id, int32_t reference_year
+);
+void temporal_plain_month_day_get_components(const char *s, PlainMonthDayComponents *out);
+TemporalResult temporal_plain_month_day_get_month_code(const char *s);
+TemporalResult temporal_plain_month_day_get_calendar(const char *s);
+TemporalResult temporal_plain_month_day_to_plain_date(const char *md_str, int32_t year);
+
+// ============================================================================
 // Calendar API
 // ============================================================================
 
