@@ -120,6 +120,11 @@ TemporalResult temporal_now_plain_date_iso(const char *tz_id);
  */
 TemporalResult temporal_now_plain_time_iso(const char *tz_id);
 
+/**
+ * Returns the current zoned date time as an ISO 8601 string.
+ */
+TemporalResult temporal_now_zoned_date_time_iso(const char *tz_id);
+
 // ============================================================================
 // PlainTime API
 // ============================================================================
@@ -418,7 +423,85 @@ TemporalResult temporal_duration_with(
     int64_t nanoseconds
 );
 
+// ============================================================================
+// TimeZone API
+// ============================================================================
+
+TemporalResult temporal_time_zone_from_string(const char *s);
+TemporalResult temporal_time_zone_get_id(const char *s);
+TemporalResult temporal_time_zone_get_offset_nanoseconds_for(const char *tz_id, const char *instant_str);
+TemporalResult temporal_time_zone_get_offset_string_for(const char *tz_id, const char *instant_str);
+TemporalResult temporal_time_zone_get_plain_date_time_for(const char *tz_id, const char *instant_str, const char *calendar_id);
+TemporalResult temporal_time_zone_get_instant_for(const char *tz_id, const char *dt_str, const char *disambiguation);
+TemporalResult temporal_time_zone_get_next_transition(const char *tz_id, const char *instant_str);
+TemporalResult temporal_time_zone_get_previous_transition(const char *tz_id, const char *instant_str);
+
+// ============================================================================
+// ZonedDateTime API
+// ============================================================================
+
+typedef struct {
+    int32_t year;
+    uint8_t month;
+    uint8_t day;
+    uint16_t day_of_week;
+    uint16_t day_of_year;
+    uint16_t week_of_year;
+    int32_t year_of_week;
+    uint16_t days_in_week;
+    uint16_t days_in_month;
+    uint16_t days_in_year;
+    uint16_t months_in_year;
+    int8_t in_leap_year;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    uint16_t millisecond;
+    uint16_t microsecond;
+    uint16_t nanosecond;
+    int64_t offset_nanoseconds;
+    int8_t is_valid;
+} ZonedDateTimeComponents;
+
+TemporalResult temporal_zoned_date_time_from_string(const char *s);
+TemporalResult temporal_zoned_date_time_from_components(
+    int32_t year, uint8_t month, uint8_t day,
+    uint8_t hour, uint8_t minute, uint8_t second,
+    uint16_t millisecond, uint16_t microsecond, uint16_t nanosecond,
+    const char *calendar_id, const char *time_zone_id, int64_t offset_nanoseconds
+);
+void temporal_zoned_date_time_get_components(const char *s, ZonedDateTimeComponents *out);
+TemporalResult temporal_zoned_date_time_epoch_milliseconds(const char *s);
+TemporalResult temporal_zoned_date_time_epoch_nanoseconds(const char *s);
+TemporalResult temporal_zoned_date_time_get_calendar(const char *s);
+TemporalResult temporal_zoned_date_time_get_time_zone(const char *s);
+TemporalResult temporal_zoned_date_time_get_offset(const char *s);
+TemporalResult temporal_zoned_date_time_add(const char *zdt_str, const char *duration_str);
+TemporalResult temporal_zoned_date_time_subtract(const char *zdt_str, const char *duration_str);
+CompareResult temporal_zoned_date_time_compare(const char *a, const char *b);
+TemporalResult temporal_zoned_date_time_with(
+    const char *zdt_str,
+    int32_t year, int32_t month, int32_t day,
+    int32_t hour, int32_t minute, int32_t second,
+    int32_t millisecond, int32_t microsecond, int32_t nanosecond,
+    int64_t offset_ns,
+    const char *calendar_id, const char *time_zone_id
+);
+TemporalResult temporal_zoned_date_time_until(const char *one_str, const char *two_str);
+TemporalResult temporal_zoned_date_time_since(const char *one_str, const char *two_str);
+TemporalResult temporal_zoned_date_time_round(
+    const char *zdt_str,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
+TemporalResult temporal_zoned_date_time_to_instant(const char *s);
+TemporalResult temporal_zoned_date_time_to_plain_date(const char *s);
+TemporalResult temporal_zoned_date_time_to_plain_time(const char *s);
+TemporalResult temporal_zoned_date_time_to_plain_date_time(const char *s);
+
 #ifdef __cplusplus
+
 }
 #endif
 

@@ -14,6 +14,8 @@ export { PlainDate } from './types/PlainDate';
 export { PlainDateTime } from './types/PlainDateTime';
 export { PlainYearMonth } from './types/PlainYearMonth';
 export { PlainMonthDay } from './types/PlainMonthDay';
+export { TimeZone } from './types/TimeZone';
+export { ZonedDateTime } from './types/ZonedDateTime';
 export type { DurationLike } from './types/Duration';
 export type { PlainTimeLike } from './types/PlainTime';
 export type { PlainDateLike } from './types/PlainDate';

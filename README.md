@@ -4,7 +4,7 @@
 
 **ECMAScript Temporal API for React Native**
 
-*Powered by [temporal_rs](https://github.com/boa-dev/temporal) — the same Rust implementation used by the V8 JavaScript engine*
+_Powered by [temporal_rs](https://github.com/boa-dev/temporal) — the same Rust implementation used by the V8 JavaScript engine_
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![React Native](https://img.shields.io/badge/React%20Native-0.76+-61DAFB?logo=react)](https://reactnative.dev)
@@ -13,8 +13,7 @@
 
 ---
 
-> [!WARNING]
-> **This library is under active development and is not ready for production use.**
+> [!WARNING] > **This library is under active development and is not ready for production use.**
 > APIs may change without notice. Use at your own risk.
 
 ---
@@ -43,27 +42,33 @@ By leveraging the same implementation used in V8, `react-native-temporal` ensure
 
 ## API Implementation Status
 
-| API | Description | Status |
-|-----|-------------|--------|
-| **Duration** | Represents a length of time (days, hours, minutes, etc.) | ✅ Implemented |
-| **Instant** | A fixed point in time (UTC timestamp) | 🚧 Mostly implemented |
-| **Now** | System time access utilities | ✅ Implemented |
-| **PlainTime** | Time of day without date or timezone | 🚧 Mostly implemented |
-| **Calendar** | Calendar system support (ISO, Buddhist, Chinese, etc.) | 🚧 Partial |
-| **PlainDate** | Calendar date without time or timezone | ❌ Not implemented |
-| **PlainDateTime** | Date and time without timezone | ❌ Not implemented |
-| **PlainYearMonth** | Year and month without day | ❌ Not implemented |
-| **PlainMonthDay** | Month and day without year | ❌ Not implemented |
-| **TimeZone** | IANA timezone or fixed UTC offset | ❌ Not implemented |
-| **ZonedDateTime** | Date/time with timezone (fully aware) | ❌ Not implemented |
+| API                | Description                                              | Status                |
+| ------------------ | -------------------------------------------------------- | --------------------- |
+| **Duration**       | Represents a length of time (days, hours, minutes, etc.) | ✅ Implemented        |
+| **Instant**        | A fixed point in time (UTC timestamp)                    | 🚧 Mostly implemented |
+| **Now**            | System time access utilities                             | ✅ Implemented        |
+| **PlainTime**      | Time of day without date or timezone                     | 🚧 Mostly implemented |
+| **Calendar**       | Calendar system support (ISO, Buddhist, Chinese, etc.)   | 🚧 Partial            |
+| **PlainDate**      | Calendar date without time or timezone                   | ✅ Implemented        |
+| **PlainDateTime**  | Date and time without timezone                           | ✅ Implemented        |
+| **PlainYearMonth** | Year and month without day                               | ✅ Implemented        |
+| **PlainMonthDay**  | Month and day without year                               | ✅ Implemented        |
+| **TimeZone**       | IANA timezone or fixed UTC offset                        | ✅ Implemented        |
+| **ZonedDateTime**  | Date/time with timezone (fully aware)                    | ✅ Implemented        |
 
 ### Implementation Details
 
 - **Duration**: Full API including `from`, all component getters, `add`, `subtract`, `negated`, `abs`, `compare`, `with`
 - **Instant**: `now`, `from`, `fromEpochMilliseconds`, `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`, `subtract`, `compare`, `equals` (missing: `until`, `since`, `round`)
-- **Now**: `instant`, `timeZoneId`, `plainDateTimeISO`, `plainDateISO`, `plainTimeISO`
+- **Now**: `instant`, `timeZoneId`, `plainDateTimeISO`, `plainDateISO`, `plainTimeISO`, `zonedDateTimeISO`
 - **PlainTime**: `from`, all component getters, `add`, `subtract`, `with`, `compare`, `equals` (missing: `until`, `since`, `round`)
 - **Calendar**: `from`, `id` getter (missing: built-in calendar constants)
+- **PlainDate**: `from`, getters, `add`, `subtract`, `compare`, `with`, `until`, `since`
+- **PlainDateTime**: `from`, getters, `add`, `subtract`, `compare`, `with`, `until`, `since`, conversions
+- **PlainYearMonth**: `from`, getters, `add`, `subtract`, `compare`, `with`, `until`, `since`, `toPlainDate`
+- **PlainMonthDay**: `from`, getters, `toPlainDate`
+- **TimeZone**: `from`, `id`, `getOffsetNanosecondsFor`, `getOffsetStringFor`, `getPlainDateTimeFor`, `getInstantFor`, `getNextTransition`, `getPreviousTransition` (missing: `getPossibleInstantsFor`)
+- **ZonedDateTime**: `from`, `epochMilliseconds`, `epochNanoseconds`, `calendar`, `timeZone`, `offset`, `add`, `subtract`, `with`, `until`, `since`, `round`, conversion methods (`toInstant`, etc.), `compare` (missing: `startOfDay`, `hoursInDay`, `equals` (use compare))
 
 ## Contributing
 

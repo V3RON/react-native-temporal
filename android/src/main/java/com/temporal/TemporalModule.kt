@@ -86,6 +86,11 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.nowPlainTimeISO(tzId)
   }
 
+  override fun nowZonedDateTimeISO(tz: String?): String {
+    val tzId = tz ?: java.util.TimeZone.getDefault().id
+    return TemporalNative.nowZonedDateTimeISO(tzId)
+  }
+
   // PlainTime methods
 
   override fun plainTimeFromString(s: String): String {
@@ -350,6 +355,148 @@ class TemporalModule(reactContext: ReactApplicationContext) :
 
   override fun plainMonthDayToPlainDate(md: String, year: Double): String {
     return TemporalNative.plainMonthDayToPlainDate(md, year.toInt())
+  }
+
+  // TimeZone methods
+
+  override fun timeZoneFromString(s: String): String {
+    return TemporalNative.timeZoneFromString(s)
+  }
+
+  override fun timeZoneGetId(s: String): String {
+    return TemporalNative.timeZoneGetId(s)
+  }
+
+  override fun timeZoneGetOffsetNanosecondsFor(tzId: String, instantStr: String): Double {
+    return TemporalNative.timeZoneGetOffsetNanosecondsFor(tzId, instantStr).toDouble()
+  }
+
+  override fun timeZoneGetOffsetStringFor(tzId: String, instantStr: String): String {
+    return TemporalNative.timeZoneGetOffsetStringFor(tzId, instantStr)
+  }
+
+  override fun timeZoneGetPlainDateTimeFor(tzId: String, instantStr: String, calendarId: String?): String {
+    return TemporalNative.timeZoneGetPlainDateTimeFor(tzId, instantStr, calendarId)
+  }
+
+  override fun timeZoneGetInstantFor(tzId: String, dtStr: String, disambiguation: String?): String {
+    return TemporalNative.timeZoneGetInstantFor(tzId, dtStr, disambiguation)
+  }
+
+  override fun timeZoneGetNextTransition(tzId: String, instantStr: String): String? {
+    return TemporalNative.timeZoneGetNextTransition(tzId, instantStr)
+  }
+
+  override fun timeZoneGetPreviousTransition(tzId: String, instantStr: String): String? {
+    return TemporalNative.timeZoneGetPreviousTransition(tzId, instantStr)
+  }
+
+  // ZonedDateTime methods
+
+  override fun zonedDateTimeFromString(s: String): String {
+    return TemporalNative.zonedDateTimeFromString(s)
+  }
+
+  override fun zonedDateTimeFromComponents(
+    year: Double, month: Double, day: Double,
+    hour: Double, minute: Double, second: Double,
+    millisecond: Double, microsecond: Double, nanosecond: Double,
+    calendarId: String?, timeZoneId: String, offsetNanoseconds: Double
+  ): String {
+    return TemporalNative.zonedDateTimeFromComponents(
+      year.toInt(), month.toInt(), day.toInt(),
+      hour.toInt(), minute.toInt(), second.toInt(),
+      millisecond.toInt(), microsecond.toInt(), nanosecond.toInt(),
+      calendarId, timeZoneId, offsetNanoseconds.toLong()
+    )
+  }
+
+  override fun zonedDateTimeGetAllComponents(s: String): WritableArray {
+    val components = TemporalNative.zonedDateTimeGetAllComponents(s)
+    val result = WritableNativeArray()
+    for (value in components) {
+      result.pushDouble(value.toDouble())
+    }
+    return result
+  }
+
+  override fun zonedDateTimeEpochMilliseconds(s: String): Double {
+    val msStr = TemporalNative.zonedDateTimeEpochMilliseconds(s)
+    return msStr.toDouble()
+  }
+
+  override fun zonedDateTimeEpochNanoseconds(s: String): String {
+    return TemporalNative.zonedDateTimeEpochNanoseconds(s)
+  }
+
+  override fun zonedDateTimeGetCalendar(s: String): String {
+    return TemporalNative.zonedDateTimeGetCalendar(s)
+  }
+
+  override fun zonedDateTimeGetTimeZone(s: String): String {
+    return TemporalNative.zonedDateTimeGetTimeZone(s)
+  }
+
+  override fun zonedDateTimeGetOffset(s: String): String {
+    return TemporalNative.zonedDateTimeGetOffset(s)
+  }
+
+  override fun zonedDateTimeAdd(zdt: String, duration: String): String {
+    return TemporalNative.zonedDateTimeAdd(zdt, duration)
+  }
+
+  override fun zonedDateTimeSubtract(zdt: String, duration: String): String {
+    return TemporalNative.zonedDateTimeSubtract(zdt, duration)
+  }
+
+  override fun zonedDateTimeCompare(a: String, b: String): Double {
+    return TemporalNative.zonedDateTimeCompare(a, b).toDouble()
+  }
+
+  override fun zonedDateTimeWith(
+    zdt: String,
+    year: Double, month: Double, day: Double,
+    hour: Double, minute: Double, second: Double,
+    millisecond: Double, microsecond: Double, nanosecond: Double,
+    offsetNs: Double,
+    calendarId: String?, timeZoneId: String?
+  ): String {
+    return TemporalNative.zonedDateTimeWith(
+      zdt,
+      year.toInt(), month.toInt(), day.toInt(),
+      hour.toInt(), minute.toInt(), second.toInt(),
+      millisecond.toInt(), microsecond.toInt(), nanosecond.toInt(),
+      offsetNs.toLong(),
+      calendarId, timeZoneId
+    )
+  }
+
+  override fun zonedDateTimeUntil(one: String, two: String): String {
+    return TemporalNative.zonedDateTimeUntil(one, two)
+  }
+
+  override fun zonedDateTimeSince(one: String, two: String): String {
+    return TemporalNative.zonedDateTimeSince(one, two)
+  }
+
+  override fun zonedDateTimeRound(zdt: String, smallestUnit: String, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.zonedDateTimeRound(zdt, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
+  override fun zonedDateTimeToInstant(s: String): String {
+    return TemporalNative.zonedDateTimeToInstant(s)
+  }
+
+  override fun zonedDateTimeToPlainDate(s: String): String {
+    return TemporalNative.zonedDateTimeToPlainDate(s)
+  }
+
+  override fun zonedDateTimeToPlainTime(s: String): String {
+    return TemporalNative.zonedDateTimeToPlainTime(s)
+  }
+
+  override fun zonedDateTimeToPlainDateTime(s: String): String {
+    return TemporalNative.zonedDateTimeToPlainDateTime(s)
   }
 
   // Calendar methods

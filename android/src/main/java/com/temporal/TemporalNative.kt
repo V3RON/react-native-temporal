@@ -53,6 +53,9 @@ object TemporalNative {
     @Throws(TemporalRangeError::class, TemporalTypeError::class)
     external fun nowPlainTimeISO(tzId: String): String
 
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun nowZonedDateTimeISO(tzId: String): String
+
     /**
      * PlainTime API
      */
@@ -224,6 +227,105 @@ object TemporalNative {
 
     @Throws(TemporalRangeError::class, TemporalTypeError::class)
     external fun plainMonthDayToPlainDate(md: String, year: Int): String
+
+    /**
+     * TimeZone API
+     */
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetId(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetOffsetNanosecondsFor(tzId: String, instantStr: String): Long
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetOffsetStringFor(tzId: String, instantStr: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetPlainDateTimeFor(tzId: String, instantStr: String, calendarId: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetInstantFor(tzId: String, dtStr: String, disambiguation: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetNextTransition(tzId: String, instantStr: String): String?
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun timeZoneGetPreviousTransition(tzId: String, instantStr: String): String?
+
+    /**
+     * ZonedDateTime API
+     */
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeFromString(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeFromComponents(
+        year: Int, month: Int, day: Int,
+        hour: Int, minute: Int, second: Int,
+        millisecond: Int, microsecond: Int, nanosecond: Int,
+        calendarId: String?, timeZoneId: String, offsetNanoseconds: Long
+    ): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeGetAllComponents(s: String): LongArray
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeEpochMilliseconds(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeEpochNanoseconds(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeGetCalendar(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeGetTimeZone(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeGetOffset(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeAdd(zdt: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeSubtract(zdt: String, duration: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeCompare(a: String, b: String): Int
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeWith(
+        zdt: String,
+        year: Int, month: Int, day: Int,
+        hour: Int, minute: Int, second: Int,
+        millisecond: Int, microsecond: Int, nanosecond: Int,
+        offsetNs: Long,
+        calendarId: String?, timeZoneId: String?
+    ): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeUntil(one: String, two: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeSince(one: String, two: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeRound(zdtStr: String, smallestUnit: String, roundingIncrement: Long, roundingMode: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeToInstant(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeToPlainDate(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeToPlainTime(s: String): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun zonedDateTimeToPlainDateTime(s: String): String
 
     /**
      * Calendar API

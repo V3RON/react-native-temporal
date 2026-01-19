@@ -1,4 +1,5 @@
 import { Instant } from './Instant';
+import { ZonedDateTime } from './ZonedDateTime';
 import NativeTemporal from '../NativeTemporal';
 import { wrapNativeCall } from '../utils';
 
@@ -50,5 +51,16 @@ export const Now = {
       () => NativeTemporal.nowPlainTimeISO(temporalTimeZoneLike),
       'Failed to get plain time'
     );
+  },
+
+  /**
+   * Returns the current date and time as a ZonedDateTime.
+   */
+  zonedDateTimeISO: (temporalTimeZoneLike?: string): ZonedDateTime => {
+    const iso = wrapNativeCall(
+      () => NativeTemporal.nowZonedDateTimeISO(temporalTimeZoneLike),
+      'Failed to get zoned date time'
+    );
+    return ZonedDateTime.from(iso);
   },
 };

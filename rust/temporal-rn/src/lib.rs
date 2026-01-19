@@ -4,9 +4,9 @@ use std::str::FromStr;
 
 use temporal_rs::sys::Temporal;
 use temporal_rs::{
-    options::{DisplayCalendar, ToStringRoundingOptions},
+    options::{DisplayCalendar, ToStringRoundingOptions, DisplayOffset, DisplayTimeZone, Disambiguation, OffsetDisambiguation, Overflow, RoundingOptions, RoundingMode, Unit, RoundingIncrement},
     Calendar, Duration, Instant, PlainDate, PlainDateTime, PlainMonthDay, PlainTime,
-    PlainYearMonth, TimeZone,
+    PlainYearMonth, TimeZone, ZonedDateTime, TemporalError,
 };
 use timezone_provider::tzif::CompiledTzdbProvider;
 
@@ -329,6 +329,27 @@ pub extern "C" fn temporal_now_plain_time_iso(tz_id: *const c_char) -> TemporalR
         Ok(s) => TemporalResult::success(s),
         Err(e) => TemporalResult::range_error(&format!("Failed to get plain time: {}", e)),
     }
+}
+
+#[no_mangle]
+pub extern "C" fn temporal_now_zoned_date_time_iso(tz_id: *const c_char) -> TemporalResult {
+    let tz_str = match parse_c_str(tz_id, "timezone id") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    match get_now_zoned_date_time_string(tz_str) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get zoned date time: {}", e)),
+    }
+}
+
+fn get_now_zoned_date_time_string(tz_id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let now = Temporal::utc_now();
+    let instant = now.instant()?;
+    let time_zone = TimeZone::try_from_str(tz_id)?;
+    let zdt = instant.to_zoned_date_time_iso(time_zone)?;
+    Ok(zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default())?)
 }
 
 fn get_now_plain_date_time_string(tz_id: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -2077,7 +2098,788 @@ where
 // Android JNI bindings
 // ============================================================================
 
+
+// ============================================================================
+// TimeZone API
+// ============================================================================
+
+/// Gets a TimeZone from a string identifier.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_from_string(s: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(s, "timezone string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    match TimeZone::try_from_str(s_str) {
+        Ok(tz) => match tz.identifier() {
+            Ok(id) => TemporalResult::success(id),
+            Err(e) => TemporalResult::range_error(&format!("Failed to get timezone id: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid timezone '{}': {}", s_str, e)),
+    }
+}
+
+/// Gets the identifier of a TimeZone.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_id(s: *const c_char) -> TemporalResult {
+    let s_str = match parse_c_str(s, "timezone string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    match TimeZone::try_from_str(s_str) {
+        Ok(tz) => match tz.identifier() {
+            Ok(id) => TemporalResult::success(id),
+            Err(e) => TemporalResult::range_error(&format!("Failed to get timezone id: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid timezone '{}': {}", s_str, e)),
+    }
+}
+
+/// Gets the offset nanoseconds for an instant in a timezone.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_offset_nanoseconds_for(
+    tz_id: *const c_char,
+    instant_str: *const c_char,
+) -> TemporalResult {
+    let tz = match parse_time_zone(tz_id, "timezone") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+
+    let provider = CompiledTzdbProvider::default();
+    match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, Calendar::default()) {
+        Ok(zdt) => TemporalResult::success(zdt.offset_nanoseconds().to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get offset: {}", e)),
+    }
+}
+
+/// Gets the offset string for an instant in a timezone.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_offset_string_for(
+    tz_id: *const c_char,
+    instant_str: *const c_char,
+) -> TemporalResult {
+    let tz = match parse_time_zone(tz_id, "timezone") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+
+    let provider = CompiledTzdbProvider::default();
+    match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, Calendar::default()) {
+        Ok(zdt) => TemporalResult::success(zdt.offset().to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get offset string: {}", e)),
+    }
+}
+
+/// Gets the PlainDateTime for an instant in a timezone.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_plain_date_time_for(
+    tz_id: *const c_char,
+    instant_str: *const c_char,
+    calendar_id: *const c_char,
+) -> TemporalResult {
+    let tz = match parse_time_zone(tz_id, "timezone") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    
+    let calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        Calendar::default()
+    };
+
+    match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, calendar) {
+        Ok(zdt) => match zdt.to_plain_date_time().to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to get plain date time: {}", e)),
+    }
+}
+
+/// Gets the Instant for a PlainDateTime in a timezone.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_instant_for(
+    tz_id: *const c_char,
+    dt_str: *const c_char,
+    disambiguation: *const c_char,
+) -> TemporalResult {
+    let tz = match parse_time_zone(tz_id, "timezone") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let dt = match parse_plain_date_time(dt_str, "plain date time") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    let disambig_enum = if !disambiguation.is_null() {
+        match parse_c_str(disambiguation, "disambiguation") {
+            Ok(s) => match s {
+                "compatible" => Disambiguation::Compatible,
+                "earlier" => Disambiguation::Earlier,
+                "later" => Disambiguation::Later,
+                "reject" => Disambiguation::Reject,
+                _ => Disambiguation::Compatible,
+            },
+            Err(e) => return e,
+        }
+    } else {
+        Disambiguation::Compatible
+    };
+
+    match dt.to_zoned_date_time(tz, disambig_enum) {
+        Ok(zdt) => {
+             let instant = zdt.to_instant();
+             let provider = CompiledTzdbProvider::default();
+             match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+             }
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to get instant: {}", e)),
+    }
+}
+
+/// Gets the next transition instant.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_next_transition(
+    tz_id: *const c_char,
+    instant_str: *const c_char,
+) -> TemporalResult {
+    let tz = match parse_time_zone(tz_id, "timezone") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+
+    // TODO: Implement using provider directly when API is clear
+    match Ok::<Option<Instant>, TemporalError>(None) { // Stub
+        Ok(Some(i)) => {
+            let provider = CompiledTzdbProvider::default();
+            match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Ok(None) => TemporalResult::success(String::new()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get next transition: {}", e)),
+    }
+}
+
+/// Gets the previous transition instant.
+#[no_mangle]
+pub extern "C" fn temporal_time_zone_get_previous_transition(
+    tz_id: *const c_char,
+    instant_str: *const c_char,
+) -> TemporalResult {
+    let tz = match parse_time_zone(tz_id, "timezone") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let instant = match parse_instant(instant_str, "instant") {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+
+    // TODO: Implement using provider directly
+    match Ok::<Option<Instant>, TemporalError>(None) {
+        Ok(Some(i)) => {
+            let provider = CompiledTzdbProvider::default();
+            match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                Ok(s) => TemporalResult::success(s),
+                Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
+            }
+        },
+        Ok(None) => TemporalResult::success(String::new()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get previous transition: {}", e)),
+    }
+}
+
+// ============================================================================
+// ZonedDateTime API
+// ============================================================================
+
+/// Represents a ZonedDateTime's component values for FFI.
+#[repr(C)]
+pub struct ZonedDateTimeComponents {
+    pub year: i32,
+    pub month: u8,
+    pub day: u8,
+    pub day_of_week: u16,
+    pub day_of_year: u16,
+    pub week_of_year: u16,
+    pub year_of_week: i32,
+    pub days_in_week: u16,
+    pub days_in_month: u16,
+    pub days_in_year: u16,
+    pub months_in_year: u16,
+    pub in_leap_year: i8,
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+    pub millisecond: u16,
+    pub microsecond: u16,
+    pub nanosecond: u16,
+    pub offset_nanoseconds: i64,
+    pub is_valid: i8,
+}
+
+impl Default for ZonedDateTimeComponents {
+    fn default() -> Self {
+        Self {
+            year: 0,
+            month: 0,
+            day: 0,
+            day_of_week: 0,
+            day_of_year: 0,
+            week_of_year: 0,
+            year_of_week: 0,
+            days_in_week: 0,
+            days_in_month: 0,
+            days_in_year: 0,
+            months_in_year: 0,
+            in_leap_year: 0,
+            hour: 0,
+            minute: 0,
+            second: 0,
+            millisecond: 0,
+            microsecond: 0,
+            nanosecond: 0,
+            offset_nanoseconds: 0,
+            is_valid: 0,
+        }
+    }
+}
+
+/// Parses an ISO 8601 string into a ZonedDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_from_string(
+    s: *const c_char,
+) -> TemporalResult {
+    let s_str = match parse_c_str(s, "zoned date time string") {
+        Ok(s) => s,
+        Err(e) => return e,
+    };
+    
+    // Using default provider (TZDB)
+    match ZonedDateTime::from_utf8(s_str.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+        Ok(zdt) => match zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format zoned date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Invalid zoned date time '{}': {}", s_str, e)),
+    }
+}
+
+/// Creates a ZonedDateTime from components.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_from_components(
+    year: i32,
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+    second: u8,
+    millisecond: u16,
+    microsecond: u16,
+    nanosecond: u16,
+    calendar_id: *const c_char,
+    time_zone_id: *const c_char,
+    offset_nanoseconds: i64, // Optional offset for conflict resolution, 0 if ignored? 
+    // Spec: needs disambiguation options if offset is ignored/provided
+) -> TemporalResult {
+    // Constructing ZDT from components usually requires creating a PlainDateTime first, 
+    // then converting to ZDT with timezone and disambiguation.
+    
+    let calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        Calendar::default()
+    };
+
+    let pdt = match PlainDateTime::new(
+        year, month, day, 
+        hour, minute, second, 
+        millisecond, microsecond, nanosecond, 
+        calendar
+    ) {
+        Ok(d) => d,
+        Err(e) => return TemporalResult::range_error(&format!("Invalid components: {}", e)),
+    };
+
+    let tz_str = if !time_zone_id.is_null() {
+        match parse_c_str(time_zone_id, "timezone id") {
+            Ok(s) => s,
+            Err(e) => return e,
+        }
+    } else {
+        return TemporalResult::type_error("Timezone ID is required");
+    };
+
+    let tz = match TimeZone::try_from_str(tz_str) {
+        Ok(t) => t,
+        Err(e) => return TemporalResult::range_error(&format!("Invalid timezone: {}", e)),
+    };
+
+    // We create ZDT from PDT + TZ. 
+    // TC39 `from` usually takes an object with components and options.
+    // Here we assume standard construction (compatible disambiguation).
+    
+    match pdt.to_zoned_date_time(tz, Disambiguation::Compatible) { // None = compatible/default
+        Ok(zdt) => match zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format zoned date time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to create zoned date time: {}", e)),
+    }
+}
+
+/// Gets components from a ZonedDateTime string.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_get_components(
+    s: *const c_char,
+    out: *mut ZonedDateTimeComponents,
+) {
+    if out.is_null() { return; }
+    unsafe { *out = ZonedDateTimeComponents::default(); }
+    if s.is_null() { return; }
+
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(_) => return,
+    };
+
+    unsafe {
+        (*out).year = zdt.year();
+        (*out).month = zdt.month();
+        (*out).day = zdt.day();
+        (*out).day_of_week = zdt.day_of_week();
+        (*out).day_of_year = zdt.day_of_year();
+        (*out).week_of_year = zdt.week_of_year().unwrap_or(0) as u16;
+        (*out).year_of_week = zdt.year_of_week().unwrap_or(0);
+        (*out).days_in_week = zdt.days_in_week();
+        (*out).days_in_month = zdt.days_in_month();
+        (*out).days_in_year = zdt.days_in_year();
+        (*out).months_in_year = zdt.months_in_year();
+        (*out).in_leap_year = if zdt.in_leap_year() { 1 } else { 0 };
+        
+        (*out).hour = zdt.hour();
+        (*out).minute = zdt.minute();
+        (*out).second = zdt.second();
+        (*out).millisecond = zdt.millisecond();
+        (*out).microsecond = zdt.microsecond();
+        (*out).nanosecond = zdt.nanosecond();
+        
+        (*out).offset_nanoseconds = zdt.offset_nanoseconds() as i64;
+        
+        (*out).is_valid = 1;
+    }
+}
+
+/// Gets the epoch values.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_epoch_milliseconds(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    TemporalResult::success(zdt.epoch_milliseconds().to_string())
+}
+
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_epoch_nanoseconds(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    TemporalResult::success(zdt.epoch_nanoseconds().0.to_string())
+}
+
+/// Gets the calendar ID.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_get_calendar(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    TemporalResult::success(zdt.calendar().identifier().to_string())
+}
+
+/// Gets the TimeZone ID.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_get_time_zone(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    match zdt.time_zone().identifier() {
+        Ok(id) => TemporalResult::success(id),
+        Err(e) => TemporalResult::range_error(&format!("Failed to get timezone id: {}", e)),
+    }
+}
+
+/// Gets the offset string.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_get_offset(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    TemporalResult::success(zdt.offset().to_string())
+}
+
+/// Adds a duration.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_add(
+    zdt_str: *const c_char,
+    duration_str: *const c_char,
+) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(zdt_str, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match zdt.add(&duration, Some(Overflow::Reject)) {
+        Ok(result) => match result.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to add duration: {}", e)),
+    }
+}
+
+/// Subtracts a duration.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_subtract(
+    zdt_str: *const c_char,
+    duration_str: *const c_char,
+) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(zdt_str, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    let duration = match parse_duration(duration_str, "duration") {
+        Ok(d) => d,
+        Err(e) => return e,
+    };
+
+    match zdt.subtract(&duration, Some(Overflow::Reject)) {
+        Ok(result) => match result.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to subtract duration: {}", e)),
+    }
+}
+
+/// Compares two ZonedDateTimes.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_compare(
+    a: *const c_char,
+    b: *const c_char,
+) -> CompareResult {
+    let zdt_a = match parse_zoned_date_time(a, "first zoned date time") {
+        Ok(z) => z,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+    let zdt_b = match parse_zoned_date_time(b, "second zoned date time") {
+        Ok(z) => z,
+        Err(e) => return CompareResult::range_error(
+            &unsafe { std::ffi::CStr::from_ptr(e.error_message) }.to_string_lossy()
+        ),
+    };
+
+    CompareResult::success(zdt_a.epoch_nanoseconds().0.cmp(&zdt_b.epoch_nanoseconds().0) as i32)
+}
+
+/// Returns a new ZonedDateTime with updated fields.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_with(
+    zdt_str: *const c_char,
+    year: i32,
+    month: i32,
+    day: i32,
+    hour: i32,
+    minute: i32,
+    second: i32,
+    millisecond: i32,
+    microsecond: i32,
+    nanosecond: i32,
+    offset_ns: i64, // Used for disambiguation if provided
+    calendar_id: *const c_char,
+    time_zone_id: *const c_char,
+) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(zdt_str, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    
+    // This is complex. `with` works on PlainDateTime components then resolves.
+    // We need to implement partial update logic similar to PlainDateTime but then re-resolve.
+    // For simplicity, we can extract current components, overlay new ones, create new ZDT.
+    
+    let current_pdt = zdt.to_plain_date_time();
+    
+    let new_year = if year == i32::MIN { current_pdt.year() } else { year };
+    let new_month = if month == i32::MIN { current_pdt.month() } else { month as u8 };
+    let new_day = if day == i32::MIN { current_pdt.day() } else { day as u8 };
+    
+    let new_hour = if hour == i32::MIN { current_pdt.hour() } else { hour as u8 };
+    let new_minute = if minute == i32::MIN { current_pdt.minute() } else { minute as u8 };
+    let new_second = if second == i32::MIN { current_pdt.second() } else { second as u8 };
+    let new_millisecond = if millisecond == i32::MIN { current_pdt.millisecond() } else { millisecond as u16 };
+    let new_microsecond = if microsecond == i32::MIN { current_pdt.microsecond() } else { microsecond as u16 };
+    let new_nanosecond = if nanosecond == i32::MIN { current_pdt.nanosecond() } else { nanosecond as u16 };
+
+    let new_calendar = if !calendar_id.is_null() {
+        match parse_c_str(calendar_id, "calendar id") {
+            Ok(s) => match Calendar::from_str(s) {
+                Ok(c) => c,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid calendar: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        zdt.calendar().clone()
+    };
+    
+    let new_timezone = if !time_zone_id.is_null() {
+        match parse_c_str(time_zone_id, "timezone id") {
+            Ok(s) => match TimeZone::try_from_str(s) {
+                Ok(t) => t,
+                Err(e) => return TemporalResult::range_error(&format!("Invalid timezone: {}", e)),
+            },
+            Err(e) => return e,
+        }
+    } else {
+        zdt.time_zone().clone()
+    };
+
+    let pdt = match PlainDateTime::new(
+        new_year, new_month, new_day, 
+        new_hour, new_minute, new_second, 
+        new_millisecond, new_microsecond, new_nanosecond, 
+        new_calendar
+    ) {
+        Ok(d) => d,
+        Err(e) => return TemporalResult::range_error(&format!("Invalid components: {}", e)),
+    };
+    
+    match pdt.to_zoned_date_time(new_timezone, Disambiguation::Compatible) {
+        Ok(new_zdt) => match new_zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to create zoned date time: {}", e)),
+    }
+}
+
+/// Computes difference (until).
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_until(
+    one_str: *const c_char,
+    two_str: *const c_char,
+) -> TemporalResult {
+    let one = match parse_zoned_date_time(one_str, "first zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    let two = match parse_zoned_date_time(two_str, "second zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+
+    match one.until(&two, Default::default()) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+/// Computes difference (since).
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_since(
+    one_str: *const c_char,
+    two_str: *const c_char,
+) -> TemporalResult {
+    let one = match parse_zoned_date_time(one_str, "first zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    let two = match parse_zoned_date_time(two_str, "second zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+
+    match one.since(&two, Default::default()) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+/// Rounds the ZonedDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_round(
+    zdt_str: *const c_char,
+    smallest_unit: *const c_char,
+    rounding_increment: i64,
+    rounding_mode: *const c_char,
+) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(zdt_str, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+
+    let unit = if !smallest_unit.is_null() {
+        let s = match parse_c_str(smallest_unit, "smallest unit") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match Unit::from_str(s) {
+            Ok(u) => u,
+            Err(_) => return TemporalResult::range_error(&format!("Invalid smallest unit: {}", s)),
+        }
+    } else {
+        return TemporalResult::type_error("smallestUnit is required");
+    };
+
+    let mode = if !rounding_mode.is_null() {
+        let s = match parse_c_str(rounding_mode, "rounding mode") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match RoundingMode::from_str(s) {
+            Ok(m) => m,
+            Err(_) => return TemporalResult::range_error(&format!("Invalid rounding mode: {}", s)),
+        }
+    } else {
+        RoundingMode::HalfExpand
+    };
+
+    let increment = if rounding_increment > 0 {
+        rounding_increment as u32
+    } else {
+        1
+    };
+    
+    let increment_opt = match RoundingIncrement::try_new(increment) {
+        Ok(i) => i,
+        Err(e) => return TemporalResult::range_error(&format!("Invalid rounding increment: {}", e)),
+    };
+
+    let mut options = RoundingOptions::default();
+    options.smallest_unit = Some(unit);
+    options.rounding_mode = Some(mode);
+    options.increment = Some(increment_opt);
+
+    match zdt.round(options) {
+        Ok(result) => match result.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to round: {}", e)),
+    }
+}
+
+/// Converts to Instant.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_to_instant(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    let provider = CompiledTzdbProvider::default();
+    match zdt.to_instant().to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to convert to instant: {}", e)),
+    }
+}
+
+/// Converts to PlainDate.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_to_plain_date(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    TemporalResult::success(zdt.to_plain_date().to_ixdtf_string(DisplayCalendar::Auto))
+}
+
+/// Converts to PlainTime.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_to_plain_time(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    match zdt.to_plain_time().to_ixdtf_string(ToStringRoundingOptions::default()) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to convert to plain time: {}", e)),
+    }
+}
+
+/// Converts to PlainDateTime.
+#[no_mangle]
+pub extern "C" fn temporal_zoned_date_time_to_plain_date_time(s: *const c_char) -> TemporalResult {
+    let zdt = match parse_zoned_date_time(s, "zoned date time") {
+        Ok(z) => z,
+        Err(e) => return e,
+    };
+    match zdt.to_plain_date_time().to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+        Ok(s) => TemporalResult::success(s),
+        Err(e) => TemporalResult::range_error(&format!("Failed to convert to plain date time: {}", e)),
+    }
+}
+
+// Helper functions for ZonedDateTime/TimeZone
+fn parse_time_zone(s: *const c_char, param_name: &str) -> Result<TimeZone, TemporalResult> {
+    let str_val = parse_c_str(s, param_name)?;
+    TimeZone::try_from_str(str_val)
+        .map_err(|e| TemporalResult::range_error(&format!("Invalid timezone '{}': {}", str_val, e)))
+}
+
+fn parse_zoned_date_time(s: *const c_char, param_name: &str) -> Result<ZonedDateTime, TemporalResult> {
+    let str_val = parse_c_str(s, param_name)?;
+    ZonedDateTime::from_utf8(str_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject)
+        .map_err(|e| TemporalResult::range_error(&format!("Invalid zoned date time '{}': {}", str_val, e)))
+}
+
 #[cfg(target_os = "android")]
+
 mod android {
     use jni::objects::{JClass, JString};
     use jni::sys::{jint, jlong, jlongArray, jstring};
@@ -2085,12 +2887,12 @@ mod android {
 
     use super::{
         get_instant_now_string, get_now_plain_date_string, get_now_plain_date_time_string,
-        get_now_plain_time_string,
+        get_now_plain_time_string, get_now_zoned_date_time_string,
     };
     use temporal_rs::{
-        options::{DisplayCalendar, ToStringRoundingOptions, Overflow},
+        options::{DisplayCalendar, ToStringRoundingOptions, Overflow, DisplayOffset, DisplayTimeZone, Disambiguation, OffsetDisambiguation},
         Calendar, Duration, Instant, PlainDate, PlainDateTime, PlainMonthDay, PlainTime,
-        PlainYearMonth,
+        PlainYearMonth, TimeZone, ZonedDateTime, TemporalError,
     };
     use std::str::FromStr;
     use std::ptr;
@@ -2467,6 +3269,31 @@ mod android {
                 .unwrap_or(ptr::null_mut()),
             Err(e) => {
                 throw_range_error(&mut env, &format!("Failed to get plain time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.nowZonedDateTimeISO()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_nowZonedDateTimeISO(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+    ) -> jstring {
+        let tz_str = parse_jstring(&mut env, &tz_id, "timezone id");
+        let tz_val = match tz_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        match get_now_zoned_date_time_string(&tz_val) {
+            Ok(s) => env
+                .new_string(s)
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get zoned date time: {}", e));
                 ptr::null_mut()
             }
         }
@@ -4549,10 +5376,1116 @@ mod android {
                 ptr::null_mut()
             }
         }
+
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneFromString()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneFromString(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "timezone string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match TimeZone::try_from_str(&s_val) {
+            Ok(tz) => match tz.identifier() {
+                Ok(id) => env.new_string(id)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to get timezone id: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone '{}': {}", s_val, e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetId()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetId(
+        env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        Java_com_temporal_TemporalNative_timeZoneFromString(env, _class, s)
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetOffsetNanosecondsFor()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetOffsetNanosecondsFor(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+        instant_str: JString,
+    ) -> jlong {
+        let tz_s = parse_jstring(&mut env, &tz_id, "timezone");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => return 0,
+        };
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return 0;
+            }
+        };
+
+        let inst_s = parse_jstring(&mut env, &instant_str, "instant");
+        let inst_val = match inst_s {
+            Some(s) => s,
+            None => return 0,
+        };
+        let instant = match Instant::from_str(&inst_val) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                return 0;
+            }
+        };
+
+        match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, Calendar::default()) {
+            Ok(zdt) => zdt.offset_nanoseconds() as jlong,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get offset: {}", e));
+                0
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetOffsetStringFor()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetOffsetStringFor(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+        instant_str: JString,
+    ) -> jstring {
+        let tz_s = parse_jstring(&mut env, &tz_id, "timezone");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let inst_s = parse_jstring(&mut env, &instant_str, "instant");
+        let inst_val = match inst_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let instant = match Instant::from_str(&inst_val) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, Calendar::default()) {
+            Ok(zdt) => env.new_string(zdt.offset().to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get offset string: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetPlainDateTimeFor()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetPlainDateTimeFor(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+        instant_str: JString,
+        calendar_id: JString,
+    ) -> jstring {
+        let tz_s = parse_jstring(&mut env, &tz_id, "timezone");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let inst_s = parse_jstring(&mut env, &instant_str, "instant");
+        let inst_val = match inst_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let instant = match Instant::from_str(&inst_val) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            Calendar::default()
+        };
+
+        match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, calendar) {
+            Ok(zdt) => {
+                let dt = zdt.to_plain_date_time();
+                match dt.to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                    Ok(s) => env.new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format plain date time: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get plain date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetInstantFor()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetInstantFor(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+        dt_str: JString,
+        disambiguation: JString,
+    ) -> jstring {
+        let tz_s = parse_jstring(&mut env, &tz_id, "timezone");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let dt_s = parse_jstring(&mut env, &dt_str, "plain date time");
+        let dt_val = match dt_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let dt = match PlainDateTime::from_str(&dt_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid plain date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        // Disambiguation handling... assumes Compatible default or parse string
+        let disambig_enum = if !disambiguation.is_null() {
+            match parse_jstring(&mut env, &disambiguation, "disambiguation") {
+                Some(s) => match s.as_str() {
+                    "compatible" => Disambiguation::Compatible,
+                    "earlier" => Disambiguation::Earlier,
+                    "later" => Disambiguation::Later,
+                    "reject" => Disambiguation::Reject,
+                    _ => Disambiguation::Compatible,
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            Disambiguation::Compatible
+        };
+
+        match dt.to_zoned_date_time(tz, disambig_enum) {
+            Ok(zdt) => {
+                let instant = zdt.to_instant();
+                let provider = CompiledTzdbProvider::default();
+                match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env.new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get instant: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetNextTransition()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetNextTransition(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+        instant_str: JString,
+    ) -> jstring {
+        let tz_s = parse_jstring(&mut env, &tz_id, "timezone");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let inst_s = parse_jstring(&mut env, &instant_str, "instant");
+        let inst_val = match inst_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let instant = match Instant::from_str(&inst_val) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        // TODO: Implement using provider directly
+        match Ok::<Option<Instant>, TemporalError>(None) {
+            Ok(Some(i)) => {
+                let provider = CompiledTzdbProvider::default();
+                match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env.new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Ok(None) => ptr::null_mut(), // Return null
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get next transition: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.timeZoneGetPreviousTransition()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_timeZoneGetPreviousTransition(
+        mut env: JNIEnv,
+        _class: JClass,
+        tz_id: JString,
+        instant_str: JString,
+    ) -> jstring {
+        let tz_s = parse_jstring(&mut env, &tz_id, "timezone");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let inst_s = parse_jstring(&mut env, &instant_str, "instant");
+        let inst_val = match inst_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let instant = match Instant::from_str(&inst_val) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        // TODO: Implement using provider directly
+        match Ok::<Option<Instant>, TemporalError>(None) {
+            Ok(Some(i)) => {
+                let provider = CompiledTzdbProvider::default();
+                match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env.new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Ok(None) => ptr::null_mut(),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to get previous transition: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeFromString()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeFromString(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(zdt) => match zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format zoned date time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time '{}': {}", s_val, e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeFromComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeFromComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        year: jint,
+        month: jint,
+        day: jint,
+        hour: jint,
+        minute: jint,
+        second: jint,
+        millisecond: jint,
+        microsecond: jint,
+        nanosecond: jint,
+        calendar_id: JString,
+        time_zone_id: JString,
+        offset_nanoseconds: jlong,
+    ) -> jstring {
+        let calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            Calendar::default()
+        };
+
+        let pdt = match PlainDateTime::new(
+            year, month as u8, day as u8, 
+            hour as u8, minute as u8, second as u8, 
+            millisecond as u16, microsecond as u16, nanosecond as u16, 
+            calendar
+        ) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid components: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let tz_s = parse_jstring(&mut env, &time_zone_id, "timezone id");
+        let tz_val = match tz_s {
+            Some(s) => s,
+            None => {
+                throw_type_error(&mut env, "Timezone ID is required");
+                return ptr::null_mut();
+            }
+        };
+
+        let tz = match TimeZone::try_from_str(&tz_val) {
+            Ok(t) => t,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match pdt.to_zoned_date_time(tz, Disambiguation::Compatible) {
+            Ok(zdt) => match zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format zoned date time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to create zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeGetAllComponents()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeGetAllComponents(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jlongArray {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        
+        // Use default provider
+        let zdt = match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let components: [i64; 19] = [
+            zdt.year() as i64,
+            zdt.month() as i64,
+            zdt.day() as i64,
+            zdt.day_of_week() as i64,
+            zdt.day_of_year() as i64,
+            zdt.week_of_year().unwrap_or(0) as i64,
+            zdt.year_of_week().unwrap_or(0) as i64,
+            zdt.days_in_week() as i64,
+            zdt.days_in_month() as i64,
+            zdt.days_in_year() as i64,
+            zdt.months_in_year() as i64,
+            if zdt.in_leap_year() { 1 } else { 0 },
+            zdt.hour() as i64,
+            zdt.minute() as i64,
+            zdt.second() as i64,
+            zdt.millisecond() as i64,
+            zdt.microsecond() as i64,
+            zdt.nanosecond() as i64,
+            zdt.offset_nanoseconds() as i64,
+        ];
+
+        match env.new_long_array(19) {
+            Ok(arr) => {
+                if env.set_long_array_region(&arr, 0, &components).is_err() {
+                    throw_range_error(&mut env, "Failed to set array elements");
+                    return ptr::null_mut();
+                }
+                arr.into_raw()
+            }
+            Err(_) => {
+                throw_range_error(&mut env, "Failed to create result array");
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeEpochMilliseconds()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeEpochMilliseconds(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt = match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+        env.new_string(zdt.epoch_milliseconds().to_string())
+            .map(|js| js.into_raw())
+            .unwrap_or(ptr::null_mut())
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeEpochNanoseconds()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeEpochNanoseconds(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt = match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+        env.new_string(zdt.epoch_nanoseconds().0.to_string())
+            .map(|js| js.into_raw())
+            .unwrap_or(ptr::null_mut())
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeGetCalendar()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeGetCalendar(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => env.new_string(z.calendar().identifier())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeGetTimeZone()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeGetTimeZone(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => match z.time_zone().identifier() {
+                Ok(id) => env.new_string(id)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to get identifier: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeGetOffset()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeGetOffset(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => env.new_string(z.offset().to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeAdd()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeAdd(
+        mut env: JNIEnv,
+        _class: JClass,
+        zdt_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let zdt_s = parse_jstring(&mut env, &zdt_str, "zoned date time");
+        let zdt_val = match zdt_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt = match ZonedDateTime::from_utf8(zdt_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let dur_s = parse_jstring(&mut env, &duration_str, "duration");
+        let dur_val = match dur_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let duration = match Duration::from_str(&dur_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid duration: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match zdt.add(&duration, Some(Overflow::Reject)) {
+            Ok(result) => match result.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format result: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to add duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeSubtract()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeSubtract(
+        mut env: JNIEnv,
+        _class: JClass,
+        zdt_str: JString,
+        duration_str: JString,
+    ) -> jstring {
+        let zdt_s = parse_jstring(&mut env, &zdt_str, "zoned date time");
+        let zdt_val = match zdt_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt = match ZonedDateTime::from_utf8(zdt_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let dur_s = parse_jstring(&mut env, &duration_str, "duration");
+        let dur_val = match dur_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let duration = match Duration::from_str(&dur_val) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid duration: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        match zdt.subtract(&duration, Some(Overflow::Reject)) {
+            Ok(result) => match result.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format result: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to subtract duration: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeCompare()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeCompare(
+        mut env: JNIEnv,
+        _class: JClass,
+        a: JString,
+        b: JString,
+    ) -> jint {
+        let a_str = parse_jstring(&mut env, &a, "first zoned date time");
+        let a_val = match a_str {
+            Some(s) => s,
+            None => return 0,
+        };
+        let zdt_a = match ZonedDateTime::from_utf8(a_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return 0,
+        };
+
+        let b_str = parse_jstring(&mut env, &b, "second zoned date time");
+        let b_val = match b_str {
+            Some(s) => s,
+            None => return 0,
+        };
+        let zdt_b = match ZonedDateTime::from_utf8(b_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return 0,
+        };
+
+        zdt_a.epoch_nanoseconds().0.cmp(&zdt_b.epoch_nanoseconds().0) as jint
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeWith()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeWith(
+        mut env: JNIEnv,
+        _class: JClass,
+        zdt_str: JString,
+        year: jint,
+        month: jint,
+        day: jint,
+        hour: jint,
+        minute: jint,
+        second: jint,
+        millisecond: jint,
+        microsecond: jint,
+        nanosecond: jint,
+        _offset_ns: jlong,
+        calendar_id: JString,
+        time_zone_id: JString,
+    ) -> jstring {
+        let zdt_s = parse_jstring(&mut env, &zdt_str, "zoned date time");
+        let zdt_val = match zdt_s {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt = match ZonedDateTime::from_utf8(zdt_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                return ptr::null_mut();
+            }
+        };
+        
+        let current_pdt = zdt.to_plain_date_time();
+    
+        let new_year = if year == i32::MIN { current_pdt.year() } else { year };
+        let new_month = if month == i32::MIN { current_pdt.month() } else { month as u8 };
+        let new_day = if day == i32::MIN { current_pdt.day() } else { day as u8 };
+        
+        let new_hour = if hour == i32::MIN { current_pdt.hour() } else { hour as u8 };
+        let new_minute = if minute == i32::MIN { current_pdt.minute() } else { minute as u8 };
+        let new_second = if second == i32::MIN { current_pdt.second() } else { second as u8 };
+        let new_millisecond = if millisecond == i32::MIN { current_pdt.millisecond() } else { millisecond as u16 };
+        let new_microsecond = if microsecond == i32::MIN { current_pdt.microsecond() } else { microsecond as u16 };
+        let new_nanosecond = if nanosecond == i32::MIN { current_pdt.nanosecond() } else { nanosecond as u16 };
+
+        let new_calendar = if !calendar_id.is_null() {
+            let id_str = parse_jstring(&mut env, &calendar_id, "calendar id");
+            match id_str {
+                Some(s) => match Calendar::from_str(&s) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid calendar: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            zdt.calendar().clone()
+        };
+        
+        let new_timezone = if !time_zone_id.is_null() {
+            let id_str = parse_jstring(&mut env, &time_zone_id, "timezone id");
+            match id_str {
+                Some(s) => match TimeZone::try_from_str(&s) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid timezone: {}", e));
+                        return ptr::null_mut();
+                    }
+                },
+                None => return ptr::null_mut(),
+            }
+        } else {
+            zdt.time_zone().clone()
+        };
+
+        let pdt = match PlainDateTime::new(
+            new_year, new_month, new_day, 
+            new_hour, new_minute, new_second, 
+            new_millisecond, new_microsecond, new_nanosecond, 
+            new_calendar
+        ) {
+            Ok(d) => d,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid components: {}", e));
+                return ptr::null_mut();
+            }
+        };
+        
+        match pdt.to_zoned_date_time(new_timezone, Disambiguation::Compatible) {
+            Ok(new_zdt) => match new_zdt.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to create zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeUntil()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeUntil(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+    ) -> jstring {
+        let one_str = parse_jstring(&mut env, &one, "first zoned date time");
+        let one_val = match one_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt1 = match ZonedDateTime::from_utf8(one_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        let two_str = parse_jstring(&mut env, &two, "second zoned date time");
+        let two_val = match two_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt2 = match ZonedDateTime::from_utf8(two_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        match zdt1.until(&zdt2, Default::default()) {
+            Ok(d) => env.new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute until: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeSince()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeSince(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+    ) -> jstring {
+        let one_str = parse_jstring(&mut env, &one, "first zoned date time");
+        let one_val = match one_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt1 = match ZonedDateTime::from_utf8(one_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        let two_str = parse_jstring(&mut env, &two, "second zoned date time");
+        let two_val = match two_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt2 = match ZonedDateTime::from_utf8(two_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        match zdt1.since(&zdt2, Default::default()) {
+            Ok(d) => env.new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute since: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeToInstant()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeToInstant(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(zdt) => {
+                let provider = CompiledTzdbProvider::default();
+                match zdt.to_instant().to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+                    Ok(s) => env.new_string(s)
+                        .map(|js| js.into_raw())
+                        .unwrap_or(ptr::null_mut()),
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Failed to format instant: {}", e));
+                        ptr::null_mut()
+                    }
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeToPlainDate()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeToPlainDate(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(zdt) => env.new_string(zdt.to_plain_date().to_ixdtf_string(DisplayCalendar::Auto))
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeToPlainTime()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeToPlainTime(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(zdt) => match zdt.to_plain_time().to_ixdtf_string(ToStringRoundingOptions::default()) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeToPlainDateTime()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeToPlainDateTime(
+        mut env: JNIEnv,
+        _class: JClass,
+        s: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &s, "zoned date time string");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(zdt) => match zdt.to_plain_date_time().to_ixdtf_string(ToStringRoundingOptions::default(), DisplayCalendar::Auto) {
+                Ok(s) => env.new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain date time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid zoned date time: {}", e));
+                ptr::null_mut()
+            }
+        }
     }
 }
 
-#[cfg(test)]
 mod tests {
     use super::*;
     use std::ffi::CString;

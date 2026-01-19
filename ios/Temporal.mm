@@ -212,6 +212,12 @@ static NSString *extractResultValue(TemporalResult result) {
     return extractResultValue(result);
 }
 
+- (NSString *)nowZonedDateTimeISO:(NSString *)tz {
+    NSString *tzId = tz ?: [[NSTimeZone localTimeZone] name];
+    TemporalResult result = temporal_now_zoned_date_time_iso([tzId UTF8String]);
+    return extractResultValue(result);
+}
+
 // PlainTime methods
 
 - (NSString *)plainTimeFromString:(NSString *)s {
@@ -899,7 +905,223 @@ static NSString *extractResultValue(TemporalResult result) {
     return extractResultValue(result);
 }
 
+
+// TimeZone methods
+
+- (NSString *)timeZoneFromString:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_time_zone_from_string([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)timeZoneGetId:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_time_zone_get_id([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (double)timeZoneGetOffsetNanosecondsFor:(NSString *)tzId instant:(NSString *)instantStr {
+    if (!tzId || !instantStr) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_time_zone_get_offset_nanoseconds_for([tzId UTF8String], [instantStr UTF8String]);
+    NSString *val = extractResultValue(result);
+    return [val doubleValue];
+}
+
+- (NSString *)timeZoneGetOffsetStringFor:(NSString *)tzId instant:(NSString *)instantStr {
+    if (!tzId || !instantStr) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_time_zone_get_offset_string_for([tzId UTF8String], [instantStr UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)timeZoneGetPlainDateTimeFor:(NSString *)tzId instant:(NSString *)instantStr calendarId:(NSString *)calendarId {
+    if (!tzId || !instantStr) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    TemporalResult result = temporal_time_zone_get_plain_date_time_for([tzId UTF8String], [instantStr UTF8String], cIdCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)timeZoneGetInstantFor:(NSString *)tzId dt:(NSString *)dtStr disambiguation:(NSString *)disambiguation {
+    if (!tzId || !dtStr) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *disCStr = disambiguation ? [disambiguation UTF8String] : NULL;
+    TemporalResult result = temporal_time_zone_get_instant_for([tzId UTF8String], [dtStr UTF8String], disCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)timeZoneGetNextTransition:(NSString *)tzId instant:(NSString *)instantStr {
+    if (!tzId || !instantStr) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_time_zone_get_next_transition([tzId UTF8String], [instantStr UTF8String]);
+    NSString *val = extractResultValue(result);
+    return [val length] > 0 ? val : nil;
+}
+
+- (NSString *)timeZoneGetPreviousTransition:(NSString *)tzId instant:(NSString *)instantStr {
+    if (!tzId || !instantStr) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_time_zone_get_previous_transition([tzId UTF8String], [instantStr UTF8String]);
+    NSString *val = extractResultValue(result);
+    return [val length] > 0 ? val : nil;
+}
+
+// ZonedDateTime methods
+
+- (NSString *)zonedDateTimeFromString:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_from_string([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeFromComponents:(double)year month:(double)month day:(double)day hour:(double)hour minute:(double)minute second:(double)second millisecond:(double)millisecond microsecond:(double)microsecond nanosecond:(double)nanosecond calendarId:(NSString *)calendarId timeZoneId:(NSString *)timeZoneId offsetNanoseconds:(double)offsetNanoseconds {
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    const char *tzIdCStr = timeZoneId ? [timeZoneId UTF8String] : NULL;
+    
+    TemporalResult result = temporal_zoned_date_time_from_components(
+        (int32_t)year, (uint8_t)month, (uint8_t)day,
+        (uint8_t)hour, (uint8_t)minute, (uint8_t)second,
+        (uint16_t)millisecond, (uint16_t)microsecond, (uint16_t)nanosecond,
+        cIdCStr, tzIdCStr, (int64_t)offsetNanoseconds
+    );
+    return extractResultValue(result);
+}
+
+- (NSArray<NSNumber *> *)zonedDateTimeGetAllComponents:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    
+    ZonedDateTimeComponents c;
+    temporal_zoned_date_time_get_components([s UTF8String], &c);
+    
+    if (c.is_valid == 0) {
+        THROW_RANGE_ERROR(@"Invalid zoned date time");
+    }
+    
+    return @[
+        @(c.year), @(c.month), @(c.day),
+        @(c.day_of_week), @(c.day_of_year), @(c.week_of_year), @(c.year_of_week),
+        @(c.days_in_week), @(c.days_in_month), @(c.days_in_year), @(c.months_in_year),
+        @(c.in_leap_year),
+        @(c.hour), @(c.minute), @(c.second),
+        @(c.millisecond), @(c.microsecond), @(c.nanosecond),
+        @(c.offset_nanoseconds)
+    ];
+}
+
+- (double)zonedDateTimeEpochMilliseconds:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_epoch_milliseconds([s UTF8String]);
+    NSString *val = extractResultValue(result);
+    return [val doubleValue];
+}
+
+- (NSString *)zonedDateTimeEpochNanoseconds:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_epoch_nanoseconds([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeGetCalendar:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_zoned_date_time_get_calendar([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeGetTimeZone:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_zoned_date_time_get_time_zone([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeGetOffset:(NSString *)s {
+    if (s == nil) return @"";
+    TemporalResult result = temporal_zoned_date_time_get_offset([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeAdd:(NSString *)zdt duration:(NSString *)duration {
+    if (!zdt || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_zoned_date_time_add([zdt UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeSubtract:(NSString *)zdt duration:(NSString *)duration {
+    if (!zdt || !duration) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_zoned_date_time_subtract([zdt UTF8String], [duration UTF8String]);
+    return extractResultValue(result);
+}
+
+- (double)zonedDateTimeCompare:(NSString *)a b:(NSString *)b {
+    if (!a || !b) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    CompareResult result = temporal_zoned_date_time_compare([a UTF8String], [b UTF8String]);
+    if (result.error_type != TEMPORAL_ERROR_NONE) {
+        throwCompareError(&result);
+        return 0;
+    }
+    double val = (double)result.value;
+    temporal_free_compare_result(&result);
+    return val;
+}
+
+- (NSString *)zonedDateTimeWith:(NSString *)zdt year:(double)year month:(double)month day:(double)day hour:(double)hour minute:(double)minute second:(double)second millisecond:(double)millisecond microsecond:(double)microsecond nanosecond:(double)nanosecond offsetNs:(double)offsetNs calendarId:(NSString *)calendarId timeZoneId:(NSString *)timeZoneId {
+    if (zdt == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    const char *cIdCStr = calendarId ? [calendarId UTF8String] : NULL;
+    const char *tzIdCStr = timeZoneId ? [timeZoneId UTF8String] : NULL;
+    
+    TemporalResult result = temporal_zoned_date_time_with(
+        [zdt UTF8String],
+        (int32_t)year, (int32_t)month, (int32_t)day,
+        (int32_t)hour, (int32_t)minute, (int32_t)second,
+        (int32_t)millisecond, (int32_t)microsecond, (int32_t)nanosecond,
+        (int64_t)offsetNs,
+        cIdCStr, tzIdCStr
+    );
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeUntil:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_zoned_date_time_until([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeSince:(NSString *)one two:(NSString *)two {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    TemporalResult result = temporal_zoned_date_time_since([one UTF8String], [two UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeRound:(NSString *)zdt smallestUnit:(NSString *)smallestUnit roundingIncrement:(double)roundingIncrement roundingMode:(NSString *)roundingMode {
+    if (!zdt || !smallestUnit) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *zdtCStr = [zdt UTF8String];
+    const char *unitCStr = [smallestUnit UTF8String];
+    const char *modeCStr = roundingMode ? [roundingMode UTF8String] : NULL;
+    
+    TemporalResult result = temporal_zoned_date_time_round(zdtCStr, unitCStr, (int64_t)roundingIncrement, modeCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeToInstant:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_to_instant([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeToPlainDate:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_to_plain_date([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeToPlainTime:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_to_plain_time([s UTF8String]);
+    return extractResultValue(result);
+}
+
+- (NSString *)zonedDateTimeToPlainDateTime:(NSString *)s {
+    if (s == nil) THROW_TYPE_ERROR(@"String cannot be null");
+    TemporalResult result = temporal_zoned_date_time_to_plain_date_time([s UTF8String]);
+    return extractResultValue(result);
+}
+
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
+
     (const facebook::react::ObjCTurboModule::InitParams &)params
 {
     return std::make_shared<facebook::react::NativeTemporalSpecJSI>(params);

@@ -17,6 +17,7 @@ export interface Spec extends TurboModule {
   nowPlainDateTimeISO(tz?: string): string;
   nowPlainDateISO(tz?: string): string;
   nowPlainTimeISO(tz?: string): string;
+  nowZonedDateTimeISO(tz?: string): string;
 
   // PlainTime methods
   plainTimeFromString(s: string): string;
@@ -129,6 +130,80 @@ export interface Spec extends TurboModule {
   plainMonthDayGetMonthCode(s: string): string;
   plainMonthDayGetCalendar(s: string): string;
   plainMonthDayToPlainDate(md: string, year: number): string;
+
+  // TimeZone methods
+  timeZoneFromString(s: string): string;
+  timeZoneGetId(s: string): string;
+  timeZoneGetOffsetNanosecondsFor(tzId: string, instantStr: string): number;
+  timeZoneGetOffsetStringFor(tzId: string, instantStr: string): string;
+  timeZoneGetPlainDateTimeFor(
+    tzId: string,
+    instantStr: string,
+    calendarId: string | null
+  ): string;
+  timeZoneGetInstantFor(
+    tzId: string,
+    dtStr: string,
+    disambiguation: string | null
+  ): string;
+  timeZoneGetNextTransition(tzId: string, instantStr: string): string | null;
+  timeZoneGetPreviousTransition(
+    tzId: string,
+    instantStr: string
+  ): string | null;
+
+  // ZonedDateTime methods
+  zonedDateTimeFromString(s: string): string;
+  zonedDateTimeFromComponents(
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    microsecond: number,
+    nanosecond: number,
+    calendarId: string | null,
+    timeZoneId: string,
+    offsetNanoseconds: number
+  ): string;
+  zonedDateTimeGetAllComponents(s: string): number[];
+  zonedDateTimeEpochMilliseconds(s: string): number;
+  zonedDateTimeEpochNanoseconds(s: string): string;
+  zonedDateTimeGetCalendar(s: string): string;
+  zonedDateTimeGetTimeZone(s: string): string;
+  zonedDateTimeGetOffset(s: string): string;
+  zonedDateTimeAdd(zdt: string, duration: string): string;
+  zonedDateTimeSubtract(zdt: string, duration: string): string;
+  zonedDateTimeCompare(a: string, b: string): number;
+  zonedDateTimeWith(
+    zdt: string,
+    year: number,
+    month: number,
+    day: number,
+    hour: number,
+    minute: number,
+    second: number,
+    millisecond: number,
+    microsecond: number,
+    nanosecond: number,
+    offsetNs: number,
+    calendarId: string | null,
+    timeZoneId: string | null
+  ): string;
+  zonedDateTimeUntil(one: string, two: string): string;
+  zonedDateTimeSince(one: string, two: string): string;
+  zonedDateTimeRound(
+    zdt: string,
+    smallestUnit: string,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
+  zonedDateTimeToInstant(s: string): string;
+  zonedDateTimeToPlainDate(s: string): string;
+  zonedDateTimeToPlainTime(s: string): string;
+  zonedDateTimeToPlainDateTime(s: string): string;
 
   // Calendar methods
   calendarFrom(id: string): string;
