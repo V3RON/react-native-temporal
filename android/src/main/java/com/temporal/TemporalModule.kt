@@ -65,6 +65,22 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.instantCompare(one, two).toDouble()
   }
 
+  override fun instantUntil(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.instantUntil(one, two, largestUnit, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
+  override fun instantSince(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.instantSince(one, two, largestUnit, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
+  override fun instantRound(instant: String, smallestUnit: String, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.instantRound(instant, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
+  override fun instantToZonedDateTime(instant: String, calendarId: String?, timeZoneId: String): String {
+    return TemporalNative.instantToZonedDateTime(instant, calendarId, timeZoneId)
+  }
+
   // Now methods
 
   override fun nowTimeZoneId(): String {

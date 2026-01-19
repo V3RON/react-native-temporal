@@ -1,6 +1,9 @@
 import NativeTemporal from '../NativeTemporal';
 import { wrapNativeCall } from '../utils';
 import { Duration, type DurationLike } from './Duration';
+import { ZonedDateTime } from './ZonedDateTime';
+import { Calendar } from './Calendar';
+import { TimeZone } from './TimeZone';
 
 /**
  * A Temporal.Instant represents a fixed point in time, without regard to calendar or time zone,
@@ -144,33 +147,121 @@ export class Instant {
   /**
    * Computes the difference between this Instant and another.
    */
-  until(_other: Instant, _options?: object): Duration {
-    // TODO: Implement via FFI when options passing is supported
-    throw new Error('Instant.until is not yet implemented');
+  until(
+    other: Instant | string,
+    options?: {
+      largestUnit?: string;
+      smallestUnit?: string;
+      roundingIncrement?: number;
+      roundingMode?: string;
+    }
+  ): Duration {
+    const otherInst = other instanceof Instant ? other : Instant.from(other);
+    const durStr = wrapNativeCall(
+      () =>
+        NativeTemporal.instantUntil(
+          this.#isoString,
+          otherInst.#isoString,
+          options?.largestUnit ?? null,
+          options?.smallestUnit ?? null,
+          options?.roundingIncrement ?? 1,
+          options?.roundingMode ?? null
+        ),
+      'Until failed'
+    );
+    return Duration.from(durStr);
   }
 
   /**
    * Computes the difference between another Instant and this one.
    */
-  since(_other: Instant, _options?: object): Duration {
-    // TODO: Implement via FFI when options passing is supported
-    throw new Error('Instant.since is not yet implemented');
+  since(
+    other: Instant | string,
+    options?: {
+      largestUnit?: string;
+      smallestUnit?: string;
+      roundingIncrement?: number;
+      roundingMode?: string;
+    }
+  ): Duration {
+    const otherInst = other instanceof Instant ? other : Instant.from(other);
+    const durStr = wrapNativeCall(
+      () =>
+        NativeTemporal.instantSince(
+          this.#isoString,
+          otherInst.#isoString,
+          options?.largestUnit ?? null,
+          options?.smallestUnit ?? null,
+          options?.roundingIncrement ?? 1,
+          options?.roundingMode ?? null
+        ),
+      'Since failed'
+    );
+    return Duration.from(durStr);
   }
 
   /**
    * Rounds the Instant to the given smallest unit.
    */
-  round(_options: object): Instant {
-    // TODO: Implement via FFI
-    throw new Error('Instant.round is not yet implemented');
+  round(options: {
+    smallestUnit: string;
+    roundingIncrement?: number;
+    roundingMode?: string;
+  }): Instant {
+    const iso = wrapNativeCall(
+      () =>
+        NativeTemporal.instantRound(
+          this.#isoString,
+          options.smallestUnit,
+          options.roundingIncrement ?? 1,
+          options.roundingMode ?? null
+        ),
+      'Round failed'
+    );
+    return new Instant(iso);
+  }
+
+  /**
+   * Converts this Instant to a ZonedDateTime in the ISO 8601 calendar.
+   */
+  toZonedDateTimeISO(timeZone: string | TimeZone): ZonedDateTime {
+    const tz = TimeZone.from(timeZone);
+    const iso = wrapNativeCall(
+      () =>
+        NativeTemporal.instantToZonedDateTime(
+          this.#isoString,
+          null, // Default to ISO8601 implied by null calendar logic in native or we can pass 'iso8601'
+          tz.id
+        ),
+      'To ZonedDateTime ISO failed'
+    );
+    return ZonedDateTime.from(iso);
+  }
+
+  /**
+   * Converts this Instant to a ZonedDateTime with the specified calendar and time zone.
+   */
+  toZonedDateTime(options: {
+    timeZone: string | TimeZone;
+    calendar: string | Calendar;
+  }): ZonedDateTime {
+    const tz = TimeZone.from(options.timeZone);
+    const cal = Calendar.from(options.calendar);
+    const iso = wrapNativeCall(
+      () =>
+        NativeTemporal.instantToZonedDateTime(this.#isoString, cal.id, tz.id),
+      'To ZonedDateTime failed'
+    );
+    return ZonedDateTime.from(iso);
   }
 
   /**
    * Returns the ISO 8601 string representation.
    */
-  toString(_options?: { timeZone?: string | object }): string {
-    // Basic support, ignores options for now as we always return UTC ISO from native
-    // TODO: Implement timeZone option support when TimeZone is available
+  toString(options?: { timeZone?: string | TimeZone }): string {
+    if (options?.timeZone) {
+      return this.toZonedDateTimeISO(options.timeZone).toString();
+    }
     return this.#isoString;
   }
 

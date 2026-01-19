@@ -40,6 +40,18 @@ object TemporalNative {
     @Throws(TemporalRangeError::class, TemporalTypeError::class)
     external fun instantCompare(one: String, two: String): Int
 
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantUntil(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Long, roundingMode: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantSince(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Long, roundingMode: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantRound(instantStr: String, smallestUnit: String, roundingIncrement: Long, roundingMode: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun instantToZonedDateTime(instantStr: String, calendarId: String?, timeZoneId: String): String
+
     /**
      * Now API
      */

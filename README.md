@@ -45,7 +45,7 @@ By leveraging the same implementation used in V8, `react-native-temporal` ensure
 | API                | Description                                              | Status                |
 | ------------------ | -------------------------------------------------------- | --------------------- |
 | **Duration**       | Represents a length of time (days, hours, minutes, etc.) | ✅ Implemented        |
-| **Instant**        | A fixed point in time (UTC timestamp)                    | 🚧 Mostly implemented |
+| **Instant**        | A fixed point in time (UTC timestamp)                    | ✅ Implemented        |
 | **Now**            | System time access utilities                             | ✅ Implemented        |
 | **PlainTime**      | Time of day without date or timezone                     | 🚧 Mostly implemented |
 | **Calendar**       | Calendar system support (ISO, Buddhist, Chinese, etc.)   | 🚧 Partial            |
@@ -59,7 +59,7 @@ By leveraging the same implementation used in V8, `react-native-temporal` ensure
 ### Implementation Details
 
 - **Duration**: Full API including `from`, all component getters, `add`, `subtract`, `negated`, `abs`, `compare`, `with`
-- **Instant**: `now`, `from`, `fromEpochMilliseconds`, `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`, `subtract`, `compare`, `equals` (missing: `until`, `since`, `round`)
+- **Instant**: `now`, `from`, `fromEpochMilliseconds`, `fromEpochNanoseconds`, `epochMilliseconds`, `epochNanoseconds`, `add`, `subtract`, `compare`, `equals`, `until`, `since`, `round`, `toZonedDateTimeISO`, `toZonedDateTime`
 - **Now**: `instant`, `timeZoneId`, `plainDateTimeISO`, `plainDateISO`, `plainTimeISO`, `zonedDateTimeISO`
 - **PlainTime**: `from`, all component getters, `add`, `subtract`, `with`, `compare`, `equals` (missing: `until`, `since`, `round`)
 - **Calendar**: `from`, `id` getter (missing: built-in calendar constants)

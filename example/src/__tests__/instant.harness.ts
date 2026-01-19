@@ -103,6 +103,86 @@ describe('Instant', () => {
     });
   });
 
+  describe('Instant.prototype.until', () => {
+    it('should calculate duration until another instant', () => {
+      const start = Instant.from('2020-01-01T00:00:00Z');
+      const end = Instant.from('2020-01-01T01:00:00Z');
+      const duration = start.until(end);
+      expect(duration.toString()).toBe('PT3600S');
+    });
+
+    it('should respect largestUnit option', () => {
+      const start = Instant.from('2020-01-01T00:00:00Z');
+      const end = Instant.from('2020-01-01T01:30:00Z');
+      const duration = start.until(end, { largestUnit: 'hours' });
+      expect(duration.hours).toBe(1);
+      expect(duration.minutes).toBe(30);
+    });
+  });
+
+  describe('Instant.prototype.since', () => {
+    it('should calculate duration since another instant', () => {
+      const start = Instant.from('2020-01-01T01:00:00Z');
+      const end = Instant.from('2020-01-01T00:00:00Z');
+      const duration = start.since(end);
+      expect(duration.toString()).toBe('PT3600S');
+    });
+  });
+
+  describe('Instant.prototype.round', () => {
+    it('should round to the nearest hour', () => {
+      const instant = Instant.from('2020-01-01T00:30:00Z');
+      const result = instant.round({ smallestUnit: 'hour' });
+      expect(result.toString()).toBe('2020-01-01T01:00:00Z');
+    });
+
+    it('should round down (floor) with mode', () => {
+      const instant = Instant.from('2020-01-01T00:59:00Z');
+      const result = instant.round({
+        smallestUnit: 'hour',
+        roundingMode: 'floor',
+      });
+      expect(result.toString()).toBe('2020-01-01T00:00:00Z');
+    });
+  });
+
+  describe('Instant.prototype.toZonedDateTimeISO', () => {
+    it('should convert to ZonedDateTime with ISO calendar', () => {
+      const instant = Instant.from('2020-01-01T00:00:00Z');
+      const zdt = instant.toZonedDateTimeISO('UTC');
+      expect(zdt.toString()).toBe('2020-01-01T00:00:00+00:00[UTC]');
+      expect(zdt.calendarId).toBe('iso8601');
+    });
+  });
+
+  describe('Instant.prototype.toZonedDateTime', () => {
+    it('should convert to ZonedDateTime with custom calendar', () => {
+      const instant = Instant.from('2020-01-01T00:00:00Z');
+      const zdt = instant.toZonedDateTime({
+        timeZone: 'UTC',
+        calendar: 'gregory',
+      });
+      expect(zdt.toString()).toBe(
+        '2020-01-01T00:00:00+00:00[UTC][u-ca=gregory]'
+      );
+      expect(zdt.calendarId).toBe('gregory');
+    });
+  });
+
+  describe('Instant.prototype.toString', () => {
+    it('should return ISO string by default', () => {
+      const instant = Instant.from('2020-01-01T00:00:00Z');
+      expect(instant.toString()).toBe('2020-01-01T00:00:00Z');
+    });
+
+    it('should format with timeZone option', () => {
+      const instant = Instant.from('2020-01-01T00:00:00Z');
+      // Using a fixed offset timezone for deterministic testing
+      const str = instant.toString({ timeZone: '+01:00' });
+      expect(str).toBe('2020-01-01T01:00:00+01:00[+01:00]');
+    });
+  });
+
   describe('Instant.prototype.valueOf', () => {
     it('should throw TypeError on valueOf', () => {
       const instant = Instant.from('2020-01-01T00:00:00Z');

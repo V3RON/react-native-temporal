@@ -188,6 +188,43 @@ static NSString *extractResultValue(TemporalResult result) {
     return val;
 }
 
+- (NSString *)instantUntil:(NSString *)one two:(NSString *)two largestUnit:(NSString *)largestUnit smallestUnit:(NSString *)smallestUnit roundingIncrement:(double)roundingIncrement roundingMode:(NSString *)roundingMode {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *largestCStr = largestUnit ? [largestUnit UTF8String] : NULL;
+    const char *smallestCStr = smallestUnit ? [smallestUnit UTF8String] : NULL;
+    const char *modeCStr = roundingMode ? [roundingMode UTF8String] : NULL;
+    
+    TemporalResult result = temporal_instant_until([one UTF8String], [two UTF8String], largestCStr, smallestCStr, (int64_t)roundingIncrement, modeCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantSince:(NSString *)one two:(NSString *)two largestUnit:(NSString *)largestUnit smallestUnit:(NSString *)smallestUnit roundingIncrement:(double)roundingIncrement roundingMode:(NSString *)roundingMode {
+    if (!one || !two) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *largestCStr = largestUnit ? [largestUnit UTF8String] : NULL;
+    const char *smallestCStr = smallestUnit ? [smallestUnit UTF8String] : NULL;
+    const char *modeCStr = roundingMode ? [roundingMode UTF8String] : NULL;
+    
+    TemporalResult result = temporal_instant_since([one UTF8String], [two UTF8String], largestCStr, smallestCStr, (int64_t)roundingIncrement, modeCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantRound:(NSString *)instantStr smallestUnit:(NSString *)smallestUnit roundingIncrement:(double)roundingIncrement roundingMode:(NSString *)roundingMode {
+    if (!instantStr || !smallestUnit) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *smallestCStr = [smallestUnit UTF8String];
+    const char *modeCStr = roundingMode ? [roundingMode UTF8String] : NULL;
+    
+    TemporalResult result = temporal_instant_round([instantStr UTF8String], smallestCStr, (int64_t)roundingIncrement, modeCStr);
+    return extractResultValue(result);
+}
+
+- (NSString *)instantToZonedDateTime:(NSString *)instantStr calendarId:(NSString *)calendarId timeZoneId:(NSString *)timeZoneId {
+    if (!instantStr || !timeZoneId) THROW_TYPE_ERROR(@"Arguments cannot be null");
+    const char *calendarCStr = calendarId ? [calendarId UTF8String] : NULL;
+    
+    TemporalResult result = temporal_instant_to_zoned_date_time([instantStr UTF8String], calendarCStr, [timeZoneId UTF8String]);
+    return extractResultValue(result);
+}
+
 // Now methods
 
 - (NSString *)nowTimeZoneId {

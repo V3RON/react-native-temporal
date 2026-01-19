@@ -11,6 +11,33 @@ export interface Spec extends TurboModule {
   instantAdd(instant: string, duration: string): string;
   instantSubtract(instant: string, duration: string): string;
   instantCompare(one: string, two: string): number;
+  instantUntil(
+    one: string,
+    two: string,
+    largestUnit: string | null,
+    smallestUnit: string | null,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
+  instantSince(
+    one: string,
+    two: string,
+    largestUnit: string | null,
+    smallestUnit: string | null,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
+  instantRound(
+    instant: string,
+    smallestUnit: string,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
+  instantToZonedDateTime(
+    instant: string,
+    calendarId: string | null,
+    timeZoneId: string
+  ): string;
 
   // Now methods
   nowTimeZoneId(): string;

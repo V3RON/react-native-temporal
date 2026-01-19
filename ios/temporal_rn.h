@@ -95,13 +95,35 @@ TemporalResult temporal_instant_add(const char *instant_str, const char *duratio
  * Subtracts a duration from an instant.
  */
 TemporalResult temporal_instant_subtract(const char *instant_str, const char *duration_str);
-
-/**
- * Compares two instants.
- */
 CompareResult temporal_instant_compare(const char *a, const char *b);
+TemporalResult temporal_instant_until(
+    const char *one_str,
+    const char *two_str,
+    const char *largest_unit,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
+TemporalResult temporal_instant_since(
+    const char *one_str,
+    const char *two_str,
+    const char *largest_unit,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
+TemporalResult temporal_instant_round(
+    const char *instant_str,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
+TemporalResult temporal_instant_to_zoned_date_time(
+    const char *instant_str,
+    const char *calendar_id,
+    const char *time_zone_id
+);
 
-// ============================================================================
 // Now API
 // ============================================================================
 
