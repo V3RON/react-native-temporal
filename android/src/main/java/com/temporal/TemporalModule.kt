@@ -152,6 +152,18 @@ class TemporalModule(reactContext: ReactApplicationContext) :
     return TemporalNative.plainTimeCompare(one, two).toDouble()
   }
 
+  override fun plainTimeUntil(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.plainTimeUntil(one, two, largestUnit, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
+  override fun plainTimeSince(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.plainTimeSince(one, two, largestUnit, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
+  override fun plainTimeRound(time: String, smallestUnit: String, roundingIncrement: Double, roundingMode: String?): String {
+    return TemporalNative.plainTimeRound(time, smallestUnit, roundingIncrement.toLong(), roundingMode)
+  }
+
   // PlainDate methods
 
   override fun plainDateFromString(s: String): String {

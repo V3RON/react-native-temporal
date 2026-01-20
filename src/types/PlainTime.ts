@@ -206,29 +206,76 @@ export class PlainTime {
    * Computes the difference between this time and another.
    */
   until(
-    _other: PlainTime | string | PlainTimeLike,
-    _options?: object
+    other: PlainTime | string | PlainTimeLike,
+    options?: {
+      largestUnit?: string;
+      smallestUnit?: string;
+      roundingIncrement?: number;
+      roundingMode?: string;
+    }
   ): Duration {
-    // TODO: Implement via FFI
-    throw new Error('PlainTime.until is not yet implemented');
+    const t2 = other instanceof PlainTime ? other : PlainTime.from(other);
+    const durStr = wrapNativeCall(
+      () =>
+        NativeTemporal.plainTimeUntil(
+          this.#isoString,
+          t2.#isoString,
+          options?.largestUnit ?? null,
+          options?.smallestUnit ?? null,
+          options?.roundingIncrement ?? 1,
+          options?.roundingMode ?? null
+        ),
+      'Until failed'
+    );
+    return Duration.from(durStr);
   }
 
   /**
    * Computes the difference between another time and this one.
    */
   since(
-    _other: PlainTime | string | PlainTimeLike,
-    _options?: object
+    other: PlainTime | string | PlainTimeLike,
+    options?: {
+      largestUnit?: string;
+      smallestUnit?: string;
+      roundingIncrement?: number;
+      roundingMode?: string;
+    }
   ): Duration {
-    // TODO: Implement via FFI
-    throw new Error('PlainTime.since is not yet implemented');
+    const t2 = other instanceof PlainTime ? other : PlainTime.from(other);
+    const durStr = wrapNativeCall(
+      () =>
+        NativeTemporal.plainTimeSince(
+          this.#isoString,
+          t2.#isoString,
+          options?.largestUnit ?? null,
+          options?.smallestUnit ?? null,
+          options?.roundingIncrement ?? 1,
+          options?.roundingMode ?? null
+        ),
+      'Since failed'
+    );
+    return Duration.from(durStr);
   }
 
   /**
    * Rounds the time to the given smallest unit.
    */
-  round(_options: object): PlainTime {
-    // TODO: Implement via FFI
-    throw new Error('PlainTime.round is not yet implemented');
+  round(options: {
+    smallestUnit: string;
+    roundingIncrement?: number;
+    roundingMode?: string;
+  }): PlainTime {
+    const iso = wrapNativeCall(
+      () =>
+        NativeTemporal.plainTimeRound(
+          this.#isoString,
+          options.smallestUnit,
+          options.roundingIncrement ?? 1,
+          options.roundingMode ?? null
+        ),
+      'Round failed'
+    );
+    return PlainTime.from(iso);
   }
 }

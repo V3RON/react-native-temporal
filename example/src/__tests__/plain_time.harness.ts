@@ -71,6 +71,52 @@ describe('PlainTime', () => {
     });
   });
 
+  describe('PlainTime.prototype.until', () => {
+    it('should calculate duration until another time', () => {
+      const start = PlainTime.from('12:00');
+      const end = PlainTime.from('13:30');
+      const duration = start.until(end);
+      expect(duration.toString()).toBe('PT1H30M');
+    });
+
+    it('should handle wrapping around midnight', () => {
+      const start = PlainTime.from('23:00');
+      const end = PlainTime.from('01:00');
+      // until() doesn't wrap around midnight by default for PlainTime as it represents wall time
+      // 23:00 to 01:00 is -22 hours, unless we imply days, but PlainTime doesn't have days.
+      // Wait, spec says: "The difference is calculated as if both times were on the same day."
+      // So 23:00 to 01:00 should be negative duration.
+      const duration = start.until(end);
+      expect(duration.toString()).toBe('-PT22H');
+    });
+  });
+
+  describe('PlainTime.prototype.since', () => {
+    it('should calculate duration since another time', () => {
+      const start = PlainTime.from('13:30');
+      const end = PlainTime.from('12:00');
+      const duration = start.since(end);
+      expect(duration.toString()).toBe('PT1H30M');
+    });
+  });
+
+  describe('PlainTime.prototype.round', () => {
+    it('should round to nearest hour', () => {
+      const time = PlainTime.from('12:30:00');
+      const result = time.round({ smallestUnit: 'hour' });
+      expect(result.toString()).toBe('13:00:00');
+    });
+
+    it('should round down with floor', () => {
+      const time = PlainTime.from('12:59:00');
+      const result = time.round({
+        smallestUnit: 'hour',
+        roundingMode: 'floor',
+      });
+      expect(result.toString()).toBe('12:00:00');
+    });
+  });
+
   describe('PlainTime.prototype.valueOf', () => {
     it('should throw TypeError on valueOf', () => {
       const time = PlainTime.from('12:00');

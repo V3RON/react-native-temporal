@@ -5,10 +5,10 @@ use std::str::FromStr;
 use temporal_rs::sys::Temporal;
 use temporal_rs::{
     options::{DisplayCalendar, ToStringRoundingOptions, DisplayOffset, DisplayTimeZone, Disambiguation, OffsetDisambiguation, Overflow, RoundingOptions, RoundingMode, Unit, RoundingIncrement},
+    provider::COMPILED_TZ_PROVIDER,
     Calendar, Duration, Instant, PlainDate, PlainDateTime, PlainMonthDay, PlainTime,
     PlainYearMonth, TimeZone, ZonedDateTime, TemporalError,
 };
-use timezone_provider::tzif::CompiledTzdbProvider;
 
 // ============================================================================
 // Error Types (matching TC39 Temporal)
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn temporal_free_string(s: *mut c_char) {
 fn get_instant_now_string() -> Result<String, Box<dyn std::error::Error>> {
     let now = Temporal::utc_now();
     let instant = now.instant()?;
-    let provider = CompiledTzdbProvider::default();
+    let provider = &*COMPILED_TZ_PROVIDER;
     let iso_string = instant.to_ixdtf_string_with_provider(None, Default::default(), &provider)?;
     Ok(iso_string)
 }
@@ -139,7 +139,7 @@ pub extern "C" fn temporal_instant_from_string(s: *const c_char) -> TemporalResu
     };
     match Instant::from_str(s_str) {
         Ok(instant) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -157,7 +157,7 @@ pub extern "C" fn temporal_instant_from_epoch_milliseconds(ms: i64) -> TemporalR
     let ns = (ms as i128).saturating_mul(1_000_000);
     match Instant::try_new(ns) {
         Ok(instant) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -182,7 +182,7 @@ pub extern "C" fn temporal_instant_from_epoch_nanoseconds(ns_str: *const c_char)
 
     match Instant::try_new(ns) {
         Ok(instant) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -235,7 +235,7 @@ pub extern "C" fn temporal_instant_add(instant_str: *const c_char, duration_str:
     
     match instant.add(&duration) {
         Ok(result) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -259,7 +259,7 @@ pub extern "C" fn temporal_instant_subtract(instant_str: *const c_char, duration
     
     match instant.subtract(&duration) {
         Ok(result) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -507,7 +507,7 @@ pub extern "C" fn temporal_instant_round(
 
     match instant.round(options) {
         Ok(result) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -835,6 +835,232 @@ pub extern "C" fn temporal_plain_time_compare(a: *const c_char, b: *const c_char
     };
 
     CompareResult::success(time_a.cmp(&time_b) as i32)
+}
+
+/// Computes the difference between two PlainTimes (until).
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_until(
+    one_str: *const c_char,
+    two_str: *const c_char,
+    largest_unit: *const c_char,
+    smallest_unit: *const c_char,
+    rounding_increment: i64,
+    rounding_mode: *const c_char,
+) -> TemporalResult {
+    let one = match parse_plain_time(one_str, "first plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let two = match parse_plain_time(two_str, "second plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+
+    let largest = if !largest_unit.is_null() {
+        let s = match parse_c_str(largest_unit, "largest unit") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match Unit::from_str(s) {
+            Ok(u) => Some(u),
+            Err(_) => return TemporalResult::range_error(&format!("Invalid largest unit: {}", s)),
+        }
+    } else {
+        None
+    };
+
+    let smallest = if !smallest_unit.is_null() {
+        let s = match parse_c_str(smallest_unit, "smallest unit") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match Unit::from_str(s) {
+            Ok(u) => Some(u),
+            Err(_) => return TemporalResult::range_error(&format!("Invalid smallest unit: {}", s)),
+        }
+    } else {
+        None
+    };
+
+    let mode = if !rounding_mode.is_null() {
+        let s = match parse_c_str(rounding_mode, "rounding mode") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match RoundingMode::from_str(s) {
+            Ok(m) => Some(m),
+            Err(_) => return TemporalResult::range_error(&format!("Invalid rounding mode: {}", s)),
+        }
+    } else {
+        None
+    };
+
+    let increment = if rounding_increment > 0 {
+        rounding_increment as u32
+    } else {
+        1
+    };
+    
+    let increment_opt = match RoundingIncrement::try_new(increment) {
+        Ok(i) => Some(i),
+        Err(e) => return TemporalResult::range_error(&format!("Invalid rounding increment: {}", e)),
+    };
+
+    let mut options = temporal_rs::options::DifferenceSettings::default();
+    options.largest_unit = largest;
+    options.smallest_unit = smallest;
+    options.rounding_mode = mode;
+    options.increment = increment_opt;
+
+    match one.until(&two, options) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+/// Computes the difference between two PlainTimes (since).
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_since(
+    one_str: *const c_char,
+    two_str: *const c_char,
+    largest_unit: *const c_char,
+    smallest_unit: *const c_char,
+    rounding_increment: i64,
+    rounding_mode: *const c_char,
+) -> TemporalResult {
+    let one = match parse_plain_time(one_str, "first plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+    let two = match parse_plain_time(two_str, "second plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+
+    let largest = if !largest_unit.is_null() {
+        let s = match parse_c_str(largest_unit, "largest unit") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match Unit::from_str(s) {
+            Ok(u) => Some(u),
+            Err(_) => return TemporalResult::range_error(&format!("Invalid largest unit: {}", s)),
+        }
+    } else {
+        None
+    };
+
+    let smallest = if !smallest_unit.is_null() {
+        let s = match parse_c_str(smallest_unit, "smallest unit") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match Unit::from_str(s) {
+            Ok(u) => Some(u),
+            Err(_) => return TemporalResult::range_error(&format!("Invalid smallest unit: {}", s)),
+        }
+    } else {
+        None
+    };
+
+    let mode = if !rounding_mode.is_null() {
+        let s = match parse_c_str(rounding_mode, "rounding mode") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match RoundingMode::from_str(s) {
+            Ok(m) => Some(m),
+            Err(_) => return TemporalResult::range_error(&format!("Invalid rounding mode: {}", s)),
+        }
+    } else {
+        None
+    };
+
+    let increment = if rounding_increment > 0 {
+        rounding_increment as u32
+    } else {
+        1
+    };
+    
+    let increment_opt = match RoundingIncrement::try_new(increment) {
+        Ok(i) => Some(i),
+        Err(e) => return TemporalResult::range_error(&format!("Invalid rounding increment: {}", e)),
+    };
+
+    let mut options = temporal_rs::options::DifferenceSettings::default();
+    options.largest_unit = largest;
+    options.smallest_unit = smallest;
+    options.rounding_mode = mode;
+    options.increment = increment_opt;
+
+    match one.since(&two, options) {
+        Ok(d) => TemporalResult::success(d.to_string()),
+        Err(e) => TemporalResult::range_error(&format!("Failed to compute difference: {}", e)),
+    }
+}
+
+/// Rounds the PlainTime.
+#[no_mangle]
+pub extern "C" fn temporal_plain_time_round(
+    time_str: *const c_char,
+    smallest_unit: *const c_char,
+    rounding_increment: i64,
+    rounding_mode: *const c_char,
+) -> TemporalResult {
+    let time = match parse_plain_time(time_str, "plain time") {
+        Ok(t) => t,
+        Err(e) => return e,
+    };
+
+    let unit = if !smallest_unit.is_null() {
+        let s = match parse_c_str(smallest_unit, "smallest unit") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match Unit::from_str(s) {
+            Ok(u) => u,
+            Err(_) => return TemporalResult::range_error(&format!("Invalid smallest unit: {}", s)),
+        }
+    } else {
+        return TemporalResult::type_error("smallestUnit is required");
+    };
+
+    let mode = if !rounding_mode.is_null() {
+        let s = match parse_c_str(rounding_mode, "rounding mode") {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+        match RoundingMode::from_str(s) {
+            Ok(m) => m,
+            Err(_) => return TemporalResult::range_error(&format!("Invalid rounding mode: {}", s)),
+        }
+    } else {
+        RoundingMode::HalfExpand
+    };
+
+    let increment = if rounding_increment > 0 {
+        rounding_increment as u32
+    } else {
+        1
+    };
+    
+    let increment_opt = match RoundingIncrement::try_new(increment) {
+        Ok(i) => i,
+        Err(e) => return TemporalResult::range_error(&format!("Invalid rounding increment: {}", e)),
+    };
+
+    let mut options = RoundingOptions::default();
+    options.smallest_unit = Some(unit);
+    options.rounding_mode = Some(mode);
+    options.increment = Some(increment_opt);
+
+    match time.round(options) {
+        Ok(t) => match t.to_ixdtf_string(ToStringRoundingOptions::default()) {
+            Ok(s) => TemporalResult::success(s),
+            Err(e) => TemporalResult::range_error(&format!("Failed to format plain time: {}", e)),
+        },
+        Err(e) => TemporalResult::range_error(&format!("Failed to round: {}", e)),
+    }
 }
 
 // ============================================================================
@@ -2426,7 +2652,7 @@ pub extern "C" fn temporal_time_zone_get_offset_nanoseconds_for(
         Err(e) => return e,
     };
 
-    let provider = CompiledTzdbProvider::default();
+    let provider = &*COMPILED_TZ_PROVIDER;
     match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, Calendar::default()) {
         Ok(zdt) => TemporalResult::success(zdt.offset_nanoseconds().to_string()),
         Err(e) => TemporalResult::range_error(&format!("Failed to get offset: {}", e)),
@@ -2448,7 +2674,7 @@ pub extern "C" fn temporal_time_zone_get_offset_string_for(
         Err(e) => return e,
     };
 
-    let provider = CompiledTzdbProvider::default();
+    let provider = &*COMPILED_TZ_PROVIDER;
     match ZonedDateTime::try_new(instant.epoch_nanoseconds().0, tz, Calendar::default()) {
         Ok(zdt) => TemporalResult::success(zdt.offset().to_string()),
         Err(e) => TemporalResult::range_error(&format!("Failed to get offset string: {}", e)),
@@ -2526,7 +2752,7 @@ pub extern "C" fn temporal_time_zone_get_instant_for(
     match dt.to_zoned_date_time(tz, disambig_enum) {
         Ok(zdt) => {
              let instant = zdt.to_instant();
-             let provider = CompiledTzdbProvider::default();
+             let provider = &*COMPILED_TZ_PROVIDER;
              match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -2554,7 +2780,7 @@ pub extern "C" fn temporal_time_zone_get_next_transition(
     // TODO: Implement using provider directly when API is clear
     match Ok::<Option<Instant>, TemporalError>(None) { // Stub
         Ok(Some(i)) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -2583,7 +2809,7 @@ pub extern "C" fn temporal_time_zone_get_previous_transition(
     // TODO: Implement using provider directly
     match Ok::<Option<Instant>, TemporalError>(None) {
         Ok(Some(i)) => {
-            let provider = CompiledTzdbProvider::default();
+            let provider = &*COMPILED_TZ_PROVIDER;
             match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                 Ok(s) => TemporalResult::success(s),
                 Err(e) => TemporalResult::range_error(&format!("Failed to format instant: {}", e)),
@@ -3098,7 +3324,7 @@ pub extern "C" fn temporal_zoned_date_time_to_instant(s: *const c_char) -> Tempo
         Ok(z) => z,
         Err(e) => return e,
     };
-    let provider = CompiledTzdbProvider::default();
+    let provider = &*COMPILED_TZ_PROVIDER;
     match zdt.to_instant().to_ixdtf_string_with_provider(None, Default::default(), &provider) {
         Ok(s) => TemporalResult::success(s),
         Err(e) => TemporalResult::range_error(&format!("Failed to convert to instant: {}", e)),
@@ -3167,13 +3393,14 @@ mod android {
     };
     use temporal_rs::{
         options::{DisplayCalendar, ToStringRoundingOptions, Overflow, DisplayOffset, DisplayTimeZone, Disambiguation, OffsetDisambiguation, Unit, RoundingMode, RoundingIncrement, RoundingOptions},
+        provider::{TransitionDirection, TimeZoneProvider, COMPILED_TZ_PROVIDER},
         Calendar, Duration, Instant, PlainDate, PlainDateTime, PlainMonthDay, PlainTime,
         PlainYearMonth, TimeZone, ZonedDateTime, TemporalError,
     };
     use std::str::FromStr;
     use std::ptr;
 
-    use timezone_provider::tzif::CompiledTzdbProvider;
+
     
     const RANGE_ERROR_CLASS: &str = "java/lang/RuntimeException";
     const TYPE_ERROR_CLASS: &str = "java/lang/RuntimeException";
@@ -3259,7 +3486,7 @@ mod android {
             Some(i) => i,
             None => return ptr::null_mut(),
         };
-        let provider = CompiledTzdbProvider::default();
+        let provider = &*COMPILED_TZ_PROVIDER;
         match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
             Ok(s) => env
                 .new_string(s)
@@ -3282,7 +3509,7 @@ mod android {
         let ns = (ms as i128).saturating_mul(1_000_000);
         match Instant::try_new(ns) {
             Ok(instant) => {
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env
                         .new_string(s)
@@ -3324,7 +3551,7 @@ mod android {
 
         match Instant::try_new(ns) {
             Ok(instant) => {
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env
                         .new_string(s)
@@ -3396,7 +3623,7 @@ mod android {
         
         match instant.add(&duration) {
             Ok(result) => {
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env
                         .new_string(s)
@@ -3435,7 +3662,7 @@ mod android {
         
         match instant.subtract(&duration) {
             Ok(result) => {
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env
                         .new_string(s)
@@ -3749,7 +3976,7 @@ mod android {
 
         match instant.round(options) {
             Ok(result) => {
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match result.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env
                         .new_string(s)
@@ -4162,6 +4389,296 @@ mod android {
         };
 
         time_a.cmp(&time_b) as jint
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeUntil()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeUntil(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+        largest_unit: JString,
+        smallest_unit: JString,
+        rounding_increment: jlong,
+        rounding_mode: JString,
+    ) -> jstring {
+        let one_time = match parse_plain_time(&mut env, &one, "first plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+        let two_time = match parse_plain_time(&mut env, &two, "second plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+
+        let largest = if !largest_unit.is_null() {
+            let s = parse_jstring(&mut env, &largest_unit, "largest unit");
+            match s {
+                Some(s) => match Unit::from_str(&s) {
+                    Ok(u) => Some(u),
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid largest unit: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => None,
+            }
+        } else {
+            None
+        };
+
+        let smallest = if !smallest_unit.is_null() {
+            let s = parse_jstring(&mut env, &smallest_unit, "smallest unit");
+            match s {
+                Some(s) => match Unit::from_str(&s) {
+                    Ok(u) => Some(u),
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid smallest unit: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => None,
+            }
+        } else {
+            None
+        };
+
+        let mode = if !rounding_mode.is_null() {
+            let s = parse_jstring(&mut env, &rounding_mode, "rounding mode");
+            match s {
+                Some(s) => match RoundingMode::from_str(&s) {
+                    Ok(m) => Some(m),
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid rounding mode: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => None,
+            }
+        } else {
+            None
+        };
+
+        let increment = if rounding_increment > 0 {
+            rounding_increment as u32
+        } else {
+            1
+        };
+        
+        let increment_opt = match RoundingIncrement::try_new(increment) {
+            Ok(i) => Some(i),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid rounding increment: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let mut options = temporal_rs::options::DifferenceSettings::default();
+        options.largest_unit = largest;
+        options.smallest_unit = smallest;
+        options.rounding_mode = mode;
+        options.increment = increment_opt;
+
+        match one_time.until(&two_time, options) {
+            Ok(d) => env
+                .new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute difference: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeSince()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeSince(
+        mut env: JNIEnv,
+        _class: JClass,
+        one: JString,
+        two: JString,
+        largest_unit: JString,
+        smallest_unit: JString,
+        rounding_increment: jlong,
+        rounding_mode: JString,
+    ) -> jstring {
+        let one_time = match parse_plain_time(&mut env, &one, "first plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+        let two_time = match parse_plain_time(&mut env, &two, "second plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+
+        let largest = if !largest_unit.is_null() {
+            let s = parse_jstring(&mut env, &largest_unit, "largest unit");
+            match s {
+                Some(s) => match Unit::from_str(&s) {
+                    Ok(u) => Some(u),
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid largest unit: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => None,
+            }
+        } else {
+            None
+        };
+
+        let smallest = if !smallest_unit.is_null() {
+            let s = parse_jstring(&mut env, &smallest_unit, "smallest unit");
+            match s {
+                Some(s) => match Unit::from_str(&s) {
+                    Ok(u) => Some(u),
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid smallest unit: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => None,
+            }
+        } else {
+            None
+        };
+
+        let mode = if !rounding_mode.is_null() {
+            let s = parse_jstring(&mut env, &rounding_mode, "rounding mode");
+            match s {
+                Some(s) => match RoundingMode::from_str(&s) {
+                    Ok(m) => Some(m),
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid rounding mode: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => None,
+            }
+        } else {
+            None
+        };
+
+        let increment = if rounding_increment > 0 {
+            rounding_increment as u32
+        } else {
+            1
+        };
+        
+        let increment_opt = match RoundingIncrement::try_new(increment) {
+            Ok(i) => Some(i),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid rounding increment: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let mut options = temporal_rs::options::DifferenceSettings::default();
+        options.largest_unit = largest;
+        options.smallest_unit = smallest;
+        options.rounding_mode = mode;
+        options.increment = increment_opt;
+
+        match one_time.since(&two_time, options) {
+            Ok(d) => env
+                .new_string(d.to_string())
+                .map(|js| js.into_raw())
+                .unwrap_or(ptr::null_mut()),
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to compute difference: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
+    /// JNI function for `com.temporal.TemporalNative.plainTimeRound()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_plainTimeRound(
+        mut env: JNIEnv,
+        _class: JClass,
+        time_str: JString,
+        smallest_unit: JString,
+        rounding_increment: jlong,
+        rounding_mode: JString,
+    ) -> jstring {
+        let time = match parse_plain_time(&mut env, &time_str, "plain time") {
+            Some(t) => t,
+            None => return ptr::null_mut(),
+        };
+
+        let unit = if !smallest_unit.is_null() {
+            let s = parse_jstring(&mut env, &smallest_unit, "smallest unit");
+            match s {
+                Some(s) => match Unit::from_str(&s) {
+                    Ok(u) => u,
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid smallest unit: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => {
+                    throw_type_error(&mut env, "smallestUnit is required");
+                    return ptr::null_mut();
+                }
+            }
+        } else {
+            throw_type_error(&mut env, "smallestUnit is required");
+            return ptr::null_mut();
+        };
+
+        let mode = if !rounding_mode.is_null() {
+            let s = parse_jstring(&mut env, &rounding_mode, "rounding mode");
+            match s {
+                Some(s) => match RoundingMode::from_str(&s) {
+                    Ok(m) => m,
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid rounding mode: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => RoundingMode::HalfExpand,
+            }
+        } else {
+            RoundingMode::HalfExpand
+        };
+
+        let increment = if rounding_increment > 0 {
+            rounding_increment as u32
+        } else {
+            1
+        };
+        
+        let increment_opt = match RoundingIncrement::try_new(increment) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid rounding increment: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let mut options = RoundingOptions::default();
+        options.smallest_unit = Some(unit);
+        options.rounding_mode = Some(mode);
+        options.increment = Some(increment_opt);
+
+        match time.round(options) {
+            Ok(t) => match t.to_ixdtf_string(ToStringRoundingOptions::default()) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format plain time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to round: {}", e));
+                ptr::null_mut()
+            }
+        }
     }
 
     /// Parses a PlainDate string, throwing RangeError if invalid
@@ -6269,7 +6786,7 @@ mod android {
         match dt.to_zoned_date_time(tz, disambig_enum) {
             Ok(zdt) => {
                 let instant = zdt.to_instant();
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match instant.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env.new_string(s)
                         .map(|js| js.into_raw())
@@ -6321,11 +6838,25 @@ mod android {
             }
         };
 
-        // TODO: Implement using provider directly
-        match Ok::<Option<Instant>, TemporalError>(None) {
-            Ok(Some(i)) => {
-                let provider = CompiledTzdbProvider::default();
-                match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+        let provider = &*COMPILED_TZ_PROVIDER;
+        
+        let result = match tz {
+            TimeZone::IanaIdentifier(id) => {
+                provider.get_time_zone_transition(id, instant.as_i128(), TransitionDirection::Next)
+            }
+            TimeZone::UtcOffset(_) => Ok(None),
+        };
+
+        match result {
+            Ok(Some(ns)) => {
+                let instant_next = match Instant::try_new(ns.0) {
+                    Ok(i) => i,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                        return ptr::null_mut();
+                    }
+                };
+                match instant_next.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env.new_string(s)
                         .map(|js| js.into_raw())
                         .unwrap_or(ptr::null_mut()),
@@ -6335,9 +6866,9 @@ mod android {
                     }
                 }
             },
-            Ok(None) => ptr::null_mut(), // Return null
+            Ok(None) => ptr::null_mut(),
             Err(e) => {
-                throw_range_error(&mut env, &format!("Failed to get next transition: {}", e));
+                throw_range_error(&mut env, &format!("Failed to get next transition: {:?}", e));
                 ptr::null_mut()
             }
         }
@@ -6377,11 +6908,25 @@ mod android {
             }
         };
 
-        // TODO: Implement using provider directly
-        match Ok::<Option<Instant>, TemporalError>(None) {
-            Ok(Some(i)) => {
-                let provider = CompiledTzdbProvider::default();
-                match i.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
+        let provider = &*COMPILED_TZ_PROVIDER;
+        
+        let result = match tz {
+            TimeZone::IanaIdentifier(id) => {
+                provider.get_time_zone_transition(id, instant.as_i128(), TransitionDirection::Previous)
+            }
+            TimeZone::UtcOffset(_) => Ok(None),
+        };
+
+        match result {
+            Ok(Some(ns)) => {
+                let instant_prev = match Instant::try_new(ns.0) {
+                    Ok(i) => i,
+                    Err(e) => {
+                        throw_range_error(&mut env, &format!("Invalid instant: {}", e));
+                        return ptr::null_mut();
+                    }
+                };
+                match instant_prev.to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env.new_string(s)
                         .map(|js| js.into_raw())
                         .unwrap_or(ptr::null_mut()),
@@ -6393,7 +6938,7 @@ mod android {
             },
             Ok(None) => ptr::null_mut(),
             Err(e) => {
-                throw_range_error(&mut env, &format!("Failed to get previous transition: {}", e));
+                throw_range_error(&mut env, &format!("Failed to get previous transition: {:?}", e));
                 ptr::null_mut()
             }
         }
@@ -7010,6 +7555,99 @@ mod android {
         }
     }
 
+    /// JNI function for `com.temporal.TemporalNative.zonedDateTimeRound()`
+    #[no_mangle]
+    pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeRound(
+        mut env: JNIEnv,
+        _class: JClass,
+        zdt_str: JString,
+        smallest_unit: JString,
+        rounding_increment: jlong,
+        rounding_mode: JString,
+    ) -> jstring {
+        let s_str = parse_jstring(&mut env, &zdt_str, "zoned date time");
+        let s_val = match s_str {
+            Some(s) => s,
+            None => return ptr::null_mut(),
+        };
+        let zdt = match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
+            Ok(z) => z,
+            Err(_) => return ptr::null_mut(),
+        };
+
+        let unit = if !smallest_unit.is_null() {
+            let s = parse_jstring(&mut env, &smallest_unit, "smallest unit");
+            match s {
+                Some(s) => match Unit::from_str(&s) {
+                    Ok(u) => u,
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid smallest unit: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => {
+                    throw_type_error(&mut env, "smallestUnit is required");
+                    return ptr::null_mut();
+                }
+            }
+        } else {
+            throw_type_error(&mut env, "smallestUnit is required");
+            return ptr::null_mut();
+        };
+
+        let mode = if !rounding_mode.is_null() {
+            let s = parse_jstring(&mut env, &rounding_mode, "rounding mode");
+            match s {
+                Some(s) => match RoundingMode::from_str(&s) {
+                    Ok(m) => m,
+                    Err(_) => {
+                        throw_range_error(&mut env, &format!("Invalid rounding mode: {}", s));
+                        return ptr::null_mut();
+                    }
+                },
+                None => RoundingMode::HalfExpand,
+            }
+        } else {
+            RoundingMode::HalfExpand
+        };
+
+        let increment = if rounding_increment > 0 {
+            rounding_increment as u32
+        } else {
+            1
+        };
+        
+        let increment_opt = match RoundingIncrement::try_new(increment) {
+            Ok(i) => i,
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Invalid rounding increment: {}", e));
+                return ptr::null_mut();
+            }
+        };
+
+        let mut options = RoundingOptions::default();
+        options.smallest_unit = Some(unit);
+        options.rounding_mode = Some(mode);
+        options.increment = Some(increment_opt);
+
+        match zdt.round(options) {
+            Ok(result) => match result.to_ixdtf_string(DisplayOffset::Auto, DisplayTimeZone::Auto, DisplayCalendar::Auto, ToStringRoundingOptions::default()) {
+                Ok(s) => env
+                    .new_string(s)
+                    .map(|js| js.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                Err(e) => {
+                    throw_range_error(&mut env, &format!("Failed to format zoned date time: {}", e));
+                    ptr::null_mut()
+                }
+            },
+            Err(e) => {
+                throw_range_error(&mut env, &format!("Failed to round: {}", e));
+                ptr::null_mut()
+            }
+        }
+    }
+
     /// JNI function for `com.temporal.TemporalNative.zonedDateTimeToInstant()`
     #[no_mangle]
     pub extern "system" fn Java_com_temporal_TemporalNative_zonedDateTimeToInstant(
@@ -7024,7 +7662,7 @@ mod android {
         };
         match ZonedDateTime::from_utf8(s_val.as_bytes(), Disambiguation::Compatible, OffsetDisambiguation::Reject) {
             Ok(zdt) => {
-                let provider = CompiledTzdbProvider::default();
+                let provider = &*COMPILED_TZ_PROVIDER;
                 match zdt.to_instant().to_ixdtf_string_with_provider(None, Default::default(), &provider) {
                     Ok(s) => env.new_string(s)
                         .map(|js| js.into_raw())

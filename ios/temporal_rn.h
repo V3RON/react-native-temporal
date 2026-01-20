@@ -192,13 +192,30 @@ TemporalResult temporal_plain_time_add(const char *time_str, const char *duratio
  * Subtracts a duration from a PlainTime.
  */
 TemporalResult temporal_plain_time_subtract(const char *time_str, const char *duration_str);
-
-/**
- * Compares two PlainTime objects.
- */
 CompareResult temporal_plain_time_compare(const char *a, const char *b);
+TemporalResult temporal_plain_time_until(
+    const char *one_str,
+    const char *two_str,
+    const char *largest_unit,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
+TemporalResult temporal_plain_time_since(
+    const char *one_str,
+    const char *two_str,
+    const char *largest_unit,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
+TemporalResult temporal_plain_time_round(
+    const char *time_str,
+    const char *smallest_unit,
+    int64_t rounding_increment,
+    const char *rounding_mode
+);
 
-// ============================================================================
 // PlainDate API
 // ============================================================================
 

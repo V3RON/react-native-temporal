@@ -79,6 +79,21 @@ export class ZonedDateTime {
   get inLeapYear(): boolean {
     return this.#getComponent(11) === 1;
   }
+  get hoursInDay(): number {
+    const currentStart = this.startOfDay();
+    const pd = currentStart.toPlainDate();
+    const nextPd = pd.add({ days: 1 });
+    const nextPdt = PlainDateTime.from({
+      year: nextPd.year,
+      month: nextPd.month,
+      day: nextPd.day,
+      calendar: this.calendarId,
+    });
+    const nextInstant = this.timeZone.getInstantFor(nextPdt);
+    const startInstant = currentStart.toInstant();
+    const diffNs = nextInstant.epochNanoseconds - startInstant.epochNanoseconds;
+    return Number(diffNs / 3600000000000n);
+  }
   get hour(): number {
     return this.#getComponent(12);
   }
@@ -232,6 +247,21 @@ export class ZonedDateTime {
     return this.#clone(newIso);
   }
 
+  startOfDay(): ZonedDateTime {
+    const pd = this.toPlainDate();
+    const pdt = PlainDateTime.from({
+      year: pd.year,
+      month: pd.month,
+      day: pd.day,
+      calendar: this.calendarId,
+    });
+    const instant = this.timeZone.getInstantFor(pdt);
+    return instant.toZonedDateTime({
+      timeZone: this.timeZone,
+      calendar: this.calendar,
+    });
+  }
+
   toInstant(): Instant {
     const s = NativeTemporal.zonedDateTimeToInstant(this.#iso);
     return Instant.from(s);
@@ -254,6 +284,11 @@ export class ZonedDateTime {
 
   toString(_options?: any): string {
     return this.#iso;
+  }
+
+  equals(other: ZonedDateTime | string): boolean {
+    const otherZdt = ZonedDateTime.from(other);
+    return ZonedDateTime.compare(this, otherZdt) === 0;
   }
 
   toJSON(): string {

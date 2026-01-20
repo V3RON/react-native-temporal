@@ -97,6 +97,15 @@ object TemporalNative {
     @Throws(TemporalRangeError::class, TemporalTypeError::class)
     external fun plainTimeCompare(one: String, two: String): Int
 
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeUntil(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Long, roundingMode: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeSince(one: String, two: String, largestUnit: String?, smallestUnit: String?, roundingIncrement: Long, roundingMode: String?): String
+
+    @Throws(TemporalRangeError::class, TemporalTypeError::class)
+    external fun plainTimeRound(timeStr: String, smallestUnit: String, roundingIncrement: Long, roundingMode: String?): String
+
     /**
      * PlainDate API
      */

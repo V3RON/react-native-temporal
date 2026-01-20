@@ -60,6 +60,28 @@ export interface Spec extends TurboModule {
   plainTimeAdd(time: string, duration: string): string;
   plainTimeSubtract(time: string, duration: string): string;
   plainTimeCompare(one: string, two: string): number;
+  plainTimeUntil(
+    one: string,
+    two: string,
+    largestUnit: string | null,
+    smallestUnit: string | null,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
+  plainTimeSince(
+    one: string,
+    two: string,
+    largestUnit: string | null,
+    smallestUnit: string | null,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
+  plainTimeRound(
+    time: string,
+    smallestUnit: string,
+    roundingIncrement: number,
+    roundingMode: string | null
+  ): string;
 
   // PlainDate methods
   plainDateFromString(s: string): string;
